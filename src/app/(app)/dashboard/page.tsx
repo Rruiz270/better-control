@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { auth } from "@/lib/auth";
 import { getDashboardStats } from "@/lib/actions/areas";
 import { getRecentActivity } from "@/lib/actions/activity";

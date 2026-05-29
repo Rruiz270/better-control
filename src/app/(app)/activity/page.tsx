@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getRecentActivity } from "@/lib/actions/activity";
 import Header from "@/components/layout/Header";
 import { formatDistanceToNow } from "date-fns";

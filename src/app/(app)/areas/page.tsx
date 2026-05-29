@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getDashboardStats } from "@/lib/actions/areas";
 import AreaHighlightCard from "@/components/dashboard/AreaHighlightCard";
 import Header from "@/components/layout/Header";

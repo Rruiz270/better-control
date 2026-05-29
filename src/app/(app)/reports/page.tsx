@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getDashboardStats } from "@/lib/actions/areas";
 import Header from "@/components/layout/Header";
 import { AREA_CONFIGS } from "@/lib/constants";

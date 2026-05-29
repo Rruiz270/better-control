@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getProjectWithDetails } from "@/lib/actions/projects";
 import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";

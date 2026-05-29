@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getAllTasks } from "@/lib/actions/tasks";
 import Header from "@/components/layout/Header";
 import Badge from "@/components/shared/Badge";

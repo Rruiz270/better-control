@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getAreaWithStats } from "@/lib/actions/areas";
 import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
