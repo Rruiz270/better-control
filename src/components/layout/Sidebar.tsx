@@ -11,6 +11,7 @@ import {
   Users,
   Activity,
   Settings,
+  Zap,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
   { href: "/reports", label: "Relatorios", icon: BarChart3 },
   { href: "/team", label: "Equipe", icon: Users },
+  { href: "/settings/automations", label: "Automacoes", icon: Zap },
   { href: "/activity", label: "Atividade", icon: Activity },
   { href: "/settings", label: "Config", icon: Settings },
 ];

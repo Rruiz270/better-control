@@ -201,6 +201,50 @@ export const activityLog = pgTable("activity_log", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const taskDependencies = pgTable(
+  "task_dependencies",
+  {
+    taskId: uuid("task_id")
+      .references(() => tasks.id, { onDelete: "cascade" })
+      .notNull(),
+    dependsOnId: uuid("depends_on_id")
+      .references(() => tasks.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.taskId, table.dependsOnId] })]
+);
+
+export const automationRuleEnum = pgEnum("automation_trigger", [
+  "task_status_changed",
+  "task_overdue",
+  "task_assigned",
+  "project_status_changed",
+  "kpi_threshold",
+]);
+
+export const automationActionEnum = pgEnum("automation_action", [
+  "send_notification",
+  "send_whatsapp",
+  "change_status",
+  "assign_user",
+  "create_activity",
+]);
+
+export const automationRules = pgTable("automation_rules", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  areaId: uuid("area_id").references(() => areas.id),
+  projectId: uuid("project_id").references(() => projects.id),
+  name: text("name").notNull(),
+  trigger: automationRuleEnum("trigger").notNull(),
+  triggerConfig: jsonb("trigger_config"),
+  action: automationActionEnum("action").notNull(),
+  actionConfig: jsonb("action_config"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")

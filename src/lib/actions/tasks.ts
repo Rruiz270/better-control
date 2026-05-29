@@ -1,8 +1,9 @@
 "use server";
 
 import { db } from "@/db";
-import { tasks, taskAssignees, users, activityLog } from "@/db/schema";
+import { tasks, taskAssignees, users, activityLog, projects } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { evaluateRules } from "./automations";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/authorization";
 
@@ -85,6 +86,9 @@ export async function updateTaskStatus(
     updates.completedAt = new Date();
   }
 
+  const [existingTask] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  const oldStatus = existingTask?.status;
+
   await db.update(tasks).set(updates).where(eq(tasks.id, taskId));
 
   await db.insert(activityLog).values({
@@ -92,8 +96,20 @@ export async function updateTaskStatus(
     entityType: "task",
     entityId: taskId,
     action: "status_changed",
-    details: { newStatus: status },
+    details: { oldStatus, newStatus: status },
   });
+
+  if (existingTask) {
+    const [project] = await db.select().from(projects).where(eq(projects.id, existingTask.projectId)).limit(1);
+    evaluateRules("task_status_changed", {
+      taskId,
+      projectId: existingTask.projectId,
+      areaId: project?.areaId,
+      userId: session.user.id,
+      oldStatus,
+      newStatus: status,
+    }).catch(() => {});
+  }
 
   revalidatePath("/", "layout");
 }
