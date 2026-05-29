@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileBottomNav from "@/components/layout/MobileBottomNav";
 import SessionProvider from "@/components/layout/SessionProvider";
+import VoiceAssistant from "@/components/voice/VoiceAssistant";
 
 export default async function AppLayout({
   children,
@@ -20,6 +21,7 @@ export default async function AppLayout({
         <Sidebar userName={user.name} userRole={user.role} />
         <main className="flex-1 pb-20 md:pb-0">{children}</main>
         <MobileBottomNav />
+        <VoiceAssistant />
       </div>
     </SessionProvider>
   );

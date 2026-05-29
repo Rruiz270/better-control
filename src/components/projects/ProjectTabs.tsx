@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import TaskKanban from "@/components/tasks/TaskKanban";
+import TaskPipeline from "@/components/tasks/TaskPipeline";
 import KPIGrid from "@/components/kpis/KPIGrid";
 import NotesList from "@/components/notes/NotesList";
+import BudgetView from "@/components/projects/BudgetView";
 
 type Task = {
   id: string;
@@ -33,6 +34,7 @@ type Kpi = {
 const TABS = [
   { key: "tasks", label: "Tarefas" },
   { key: "kpis", label: "KPIs" },
+  { key: "budget", label: "Budget" },
   { key: "notes", label: "Notas" },
 ];
 
@@ -42,12 +44,20 @@ export default function ProjectTabs({
   kpis,
   areaSlug,
   projectSlug,
+  budget,
+  forecast,
+  startDate,
+  targetDate,
 }: {
   projectId: string;
   tasks: Task[];
   kpis: Kpi[];
   areaSlug: string;
   projectSlug: string;
+  budget?: string | null;
+  forecast?: string | null;
+  startDate?: string | null;
+  targetDate?: string | null;
 }) {
   const [activeTab, setActiveTab] = useState("tasks");
 
@@ -78,10 +88,19 @@ export default function ProjectTabs({
           transition={{ duration: 0.2 }}
         >
           {activeTab === "tasks" && (
-            <TaskKanban projectId={projectId} initialTasks={tasks} />
+            <TaskPipeline projectId={projectId} initialTasks={tasks} />
           )}
           {activeTab === "kpis" && (
             <KPIGrid projectId={projectId} initialKpis={kpis} />
+          )}
+          {activeTab === "budget" && (
+            <BudgetView
+              budget={budget}
+              forecast={forecast}
+              startDate={startDate}
+              targetDate={targetDate}
+              kpis={kpis.filter((k) => k.category === "financial")}
+            />
           )}
           {activeTab === "notes" && (
             <NotesList entityType="project" entityId={projectId} />

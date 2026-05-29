@@ -106,6 +106,10 @@ export default async function ProjectDetailPage({
           kpis={project.kpis}
           areaSlug={areaSlug}
           projectSlug={projectSlug}
+          budget={project.budget}
+          forecast={project.forecast}
+          startDate={project.startDate}
+          targetDate={project.targetDate}
         />
       </div>
     </div>
