@@ -24,18 +24,26 @@ function LoginForm() {
     setLoading(true);
     setError("");
 
-    const formData = new FormData(e.currentTarget);
-    const result = await signIn("credentials", {
-      email: formData.get("email"),
-      password: formData.get("password"),
-      redirect: false,
-    });
+    try {
+      const formData = new FormData(e.currentTarget);
+      const result = await signIn("credentials", {
+        email: formData.get("email"),
+        password: formData.get("password"),
+        redirect: false,
+      });
 
-    if (result?.error) {
-      setError("Email ou senha incorretos");
+      if (result?.error) {
+        setError("Email ou senha incorretos");
+        setLoading(false);
+      } else if (result?.ok) {
+        window.location.href = callbackUrl;
+      } else {
+        setError("Erro ao fazer login. Tente novamente.");
+        setLoading(false);
+      }
+    } catch (err) {
+      setError("Erro de conexao. Tente novamente.");
       setLoading(false);
-    } else {
-      router.push(callbackUrl);
     }
   }
 
