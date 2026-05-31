@@ -49,6 +49,18 @@ export default async function SettingsPage() {
           </a>
         )}
 
+        {isAdmin && (
+          <a
+            href="/admin/logs"
+            className="block bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-md transition-all"
+          >
+            <h3 className="text-sm font-bold text-navy">Logs de Mudanças</h3>
+            <p className="text-xs text-gray-400">
+              Auditoria completa: quem mudou o quê e quando.
+            </p>
+          </a>
+        )}
+
         {isAdmin && areas.length > 0 && (
           <AreaConfigPanel
             areas={areas.map((a) => ({

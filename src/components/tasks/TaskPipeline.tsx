@@ -86,9 +86,20 @@ export default function TaskPipeline({
   }
 
   function handleStatusChange(taskId: string, newStatus: string) {
+    const prevStatus = tasks.find((t) => t.id === taskId)?.status;
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
-    startTransition(() => {
-      updateTaskStatus(taskId, newStatus as "nao_iniciada" | "em_andamento" | "concluida" | "bloqueada" | "cancelada");
+    startTransition(async () => {
+      try {
+        await updateTaskStatus(
+          taskId,
+          newStatus as "nao_iniciada" | "em_andamento" | "concluida" | "bloqueada" | "cancelada"
+        );
+      } catch {
+        // reverte se o servidor recusou (ex.: sem permissão na área)
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId && prevStatus ? { ...t, status: prevStatus } : t))
+        );
+      }
     });
   }
 

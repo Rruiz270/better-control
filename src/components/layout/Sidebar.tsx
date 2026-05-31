@@ -16,6 +16,7 @@ import {
   ChevronRight,
   LogOut,
   UserCog,
+  ScrollText,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { href: "/settings/automations", label: "Automacoes", icon: Zap },
   { href: "/activity", label: "Atividade", icon: Activity },
   { href: "/admin/users", label: "Usuarios", icon: UserCog, adminOnly: true },
+  { href: "/admin/logs", label: "Logs", icon: ScrollText, adminOnly: true },
   { href: "/settings", label: "Config", icon: Settings },
 ];
 

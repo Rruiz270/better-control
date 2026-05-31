@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { projects, tasks, kpis, projectMembers, users } from "@/db/schema";
+import { projects, tasks, kpis, projectMembers, users, activityLog } from "@/db/schema";
 import { eq, and, count, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireAreaAccess, requireProjectAccess } from "@/lib/authorization";
@@ -68,14 +68,30 @@ export async function updateProjectStatus(
   projectId: string,
   status: string
 ) {
-  await requireProjectAccess(projectId);
-  await db
-    .update(projects)
-    .set({
-      status: status as "planejamento" | "em_execucao" | "pausado" | "concluido" | "descontinuado",
-      updatedAt: new Date(),
-    })
-    .where(eq(projects.id, projectId));
+  const session = await requireProjectAccess(projectId);
+
+  const [existing] = await db
+    .select({ status: projects.status, name: projects.name })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  await db.batch([
+    db
+      .update(projects)
+      .set({
+        status: status as "planejamento" | "em_execucao" | "pausado" | "concluido" | "descontinuado",
+        updatedAt: new Date(),
+      })
+      .where(eq(projects.id, projectId)),
+    db.insert(activityLog).values({
+      userId: session.user.id,
+      entityType: "project",
+      entityId: projectId,
+      action: "status_changed",
+      details: { name: existing?.name, oldStatus: existing?.status, newStatus: status },
+    }),
+  ]);
 
   revalidatePath("/", "layout");
 }
