@@ -1,22 +1,17 @@
 {
   "name": "Better Control",
-  "short_name": "Better Control",
-  "description": "Sistema de Gestao do Grupo Better",
-  "start_url": "/dashboard",
+  "short_name": "BetterControl",
+  "description": "Sistema de Gestão do Grupo Better",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#0A2463",
-  "theme_color": "#0A2463",
-  "orientation": "portrait-primary",
+  "background_color": "#0A1F44",
+  "theme_color": "#00B4D8",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }

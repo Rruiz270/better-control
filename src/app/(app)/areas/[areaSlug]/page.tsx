@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { getAreaWithStats } from "@/lib/actions/areas";
 import { auth } from "@/lib/auth";
-import { canManageArea, type SessionUser } from "@/lib/policy";
+import { canManageArea, canViewArea, type SessionUser } from "@/lib/policy";
 import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
@@ -25,6 +25,10 @@ export default async function AreaDetailPage({
   if (!area) notFound();
 
   const session = await auth();
+  // Read-scoping: head/member só veem a própria área (admin vê todas).
+  if (session?.user && !canViewArea(session.user as SessionUser, area.id)) {
+    notFound();
+  }
   const canEditFinancials = session?.user
     ? canManageArea(session.user as SessionUser, area.id)
     : false;

@@ -58,10 +58,17 @@ const NAV_MAP: Record<string, string> = {
   i10: "/areas/i10",
 };
 
+// Remove acentos: o speech-to-text pt-BR devolve texto acentuado ("não vai
+// sair"), mas as chaves de comando são sem acento. Normalizamos a entrada.
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
 export function parseVoiceCommand(raw: string): VoiceCommand {
-  const text = raw.toLowerCase().trim()
+  const text = stripAccents(raw.toLowerCase())
+    .trim()
     .replace(/hello better\s*/i, "")
-    .replace(/olá better\s*/i, "")
+    .replace(/ola better\s*/i, "")
     .replace(/oi better\s*/i, "")
     .trim();
 

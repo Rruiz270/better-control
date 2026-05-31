@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { getProjectWithDetails } from "@/lib/actions/projects";
 import { auth } from "@/lib/auth";
-import { canManageArea, type SessionUser } from "@/lib/policy";
+import { canManageArea, canViewArea, type SessionUser } from "@/lib/policy";
 import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
 import ProjectStatusButtons from "@/components/projects/ProjectStatusButtons";
@@ -19,6 +19,10 @@ export default async function ProjectDetailPage({
   if (!project) notFound();
 
   const session = await auth();
+  // Read-scoping: quem não pode ver a área não acessa o projeto nem pela URL.
+  if (session?.user && !canViewArea(session.user as SessionUser, project.areaId)) {
+    notFound();
+  }
   const canEditFinancials = session?.user
     ? canManageArea(session.user as SessionUser, project.areaId)
     : false;

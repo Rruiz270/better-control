@@ -12,7 +12,8 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx scripts/seed.ts",
-    "creds": "tsx scripts/generate-credentials.ts"
+    "creds": "tsx scripts/generate-credentials.ts",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
