@@ -17,8 +17,8 @@ export type FinancialEntityType = "area" | "project";
 export type FinancialStream = "receita" | "custo" | "valor_gerado";
 export type FinancialMetric = "forecast" | "budget" | "actual";
 
-/** Quais métricas cada stream usa. */
-export const STREAM_METRICS: Record<FinancialStream, FinancialMetric[]> = {
+/** Quais métricas cada stream usa. (Local: arquivos "use server" só exportam funções async.) */
+const STREAM_METRICS: Record<FinancialStream, FinancialMetric[]> = {
   receita: ["forecast", "budget", "actual"],
   custo: ["budget", "actual"],
   valor_gerado: ["actual"],
