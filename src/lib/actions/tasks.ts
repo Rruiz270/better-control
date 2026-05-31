@@ -6,8 +6,10 @@ import { eq, desc } from "drizzle-orm";
 import { evaluateRules } from "./automations";
 import { revalidatePath } from "next/cache";
 import {
+  requireSession,
   requireProjectAccess,
   requireTaskAccess,
+  type SessionUser,
 } from "@/lib/authorization";
 
 type Assignee = { userId: string; name: string; email: string };
@@ -171,6 +173,8 @@ export async function deleteTask(taskId: string) {
 }
 
 export async function getAllTasks() {
+  const session = await requireSession();
+  const user = session.user as SessionUser;
   const { projects, areas } = await import("@/db/schema");
 
   const allTasks = await db
@@ -185,8 +189,10 @@ export async function getAllTasks() {
       projectId: tasks.projectId,
       projectName: projects.name,
       projectSlug: projects.slug,
+      areaId: areas.id,
       areaName: areas.name,
       areaSlug: areas.slug,
+      areaColor: areas.color,
       createdAt: tasks.createdAt,
     })
     .from(tasks)
@@ -194,5 +200,7 @@ export async function getAllTasks() {
     .innerJoin(areas, eq(projects.areaId, areas.id))
     .orderBy(desc(tasks.createdAt));
 
-  return allTasks;
+  // Escopo por permissão: admin vê tudo; head/member só a própria área.
+  if (user.role === "admin") return allTasks;
+  return allTasks.filter((t) => t.areaId === user.areaId);
 }
