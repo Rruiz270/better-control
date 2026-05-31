@@ -255,3 +255,48 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   keysAuth: text("keys_auth").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// --- Financial planning grid -------------------------------------------------
+// Forecast / Budget / Actual por mês, por ano, para uma área OU um projeto.
+// Polimórfico (mesmo padrão de `notes`): entityType + entityId. Cada registro é
+// uma "linha horizontal" da grade (12 colunas m1..m12). Área e projeto são
+// preenchidos de forma independente (decisão de produto).
+export const financialEntityEnum = pgEnum("financial_entity", ["area", "project"]);
+export const financialMetricEnum = pgEnum("financial_metric", [
+  "forecast",
+  "budget",
+  "actual",
+]);
+
+export const financialPlans = pgTable(
+  "financial_plans",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    entityType: financialEntityEnum("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    year: integer("year").notNull(),
+    metric: financialMetricEnum("metric").notNull(),
+    m1: numeric("m1", { precision: 14, scale: 2 }).notNull().default("0"),
+    m2: numeric("m2", { precision: 14, scale: 2 }).notNull().default("0"),
+    m3: numeric("m3", { precision: 14, scale: 2 }).notNull().default("0"),
+    m4: numeric("m4", { precision: 14, scale: 2 }).notNull().default("0"),
+    m5: numeric("m5", { precision: 14, scale: 2 }).notNull().default("0"),
+    m6: numeric("m6", { precision: 14, scale: 2 }).notNull().default("0"),
+    m7: numeric("m7", { precision: 14, scale: 2 }).notNull().default("0"),
+    m8: numeric("m8", { precision: 14, scale: 2 }).notNull().default("0"),
+    m9: numeric("m9", { precision: 14, scale: 2 }).notNull().default("0"),
+    m10: numeric("m10", { precision: 14, scale: 2 }).notNull().default("0"),
+    m11: numeric("m11", { precision: 14, scale: 2 }).notNull().default("0"),
+    m12: numeric("m12", { precision: 14, scale: 2 }).notNull().default("0"),
+    updatedBy: uuid("updated_by").references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("financial_plans_unique_idx").on(
+      table.entityType,
+      table.entityId,
+      table.year,
+      table.metric
+    ),
+  ]
+);

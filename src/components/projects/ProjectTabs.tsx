@@ -6,6 +6,7 @@ import TaskPipeline from "@/components/tasks/TaskPipeline";
 import KPIGrid from "@/components/kpis/KPIGrid";
 import NotesList from "@/components/notes/NotesList";
 import BudgetView from "@/components/projects/BudgetView";
+import FinancialGrid from "@/components/financials/FinancialGrid";
 
 type Task = {
   id: string;
@@ -48,6 +49,7 @@ export default function ProjectTabs({
   forecast,
   startDate,
   targetDate,
+  canEditFinancials = false,
 }: {
   projectId: string;
   tasks: Task[];
@@ -58,6 +60,7 @@ export default function ProjectTabs({
   forecast?: string | null;
   startDate?: string | null;
   targetDate?: string | null;
+  canEditFinancials?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState("tasks");
 
@@ -94,13 +97,21 @@ export default function ProjectTabs({
             <KPIGrid projectId={projectId} initialKpis={kpis} />
           )}
           {activeTab === "budget" && (
-            <BudgetView
-              budget={budget}
-              forecast={forecast}
-              startDate={startDate}
-              targetDate={targetDate}
-              kpis={kpis.filter((k) => k.category === "financial")}
-            />
+            <div className="space-y-4">
+              <FinancialGrid
+                entityType="project"
+                entityId={projectId}
+                canEdit={canEditFinancials}
+                title="Forecast · Budget · Actual (produto)"
+              />
+              <BudgetView
+                budget={budget}
+                forecast={forecast}
+                startDate={startDate}
+                targetDate={targetDate}
+                kpis={kpis.filter((k) => k.category === "financial")}
+              />
+            </div>
           )}
           {activeTab === "notes" && (
             <NotesList entityType="project" entityId={projectId} />

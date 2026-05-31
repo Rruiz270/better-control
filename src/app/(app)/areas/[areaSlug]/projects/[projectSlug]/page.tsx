@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { getProjectWithDetails } from "@/lib/actions/projects";
+import { auth } from "@/lib/auth";
+import { canManageArea, type SessionUser } from "@/lib/policy";
 import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
 import ProjectStatusButtons from "@/components/projects/ProjectStatusButtons";
@@ -15,6 +17,11 @@ export default async function ProjectDetailPage({
   const { areaSlug, projectSlug } = await params;
   const project = await getProjectWithDetails(areaSlug, projectSlug);
   if (!project) notFound();
+
+  const session = await auth();
+  const canEditFinancials = session?.user
+    ? canManageArea(session.user as SessionUser, project.areaId)
+    : false;
 
   const completedTasks = project.tasks.filter(
     (t) => t.status === "concluida"
@@ -110,6 +117,7 @@ export default async function ProjectDetailPage({
           forecast={project.forecast}
           startDate={project.startDate}
           targetDate={project.targetDate}
+          canEditFinancials={canEditFinancials}
         />
       </div>
     </div>

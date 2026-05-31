@@ -1,10 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { getAreaWithStats } from "@/lib/actions/areas";
+import { auth } from "@/lib/auth";
+import { canManageArea, type SessionUser } from "@/lib/policy";
 import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
 import Badge from "@/components/shared/Badge";
+import FinancialGrid from "@/components/financials/FinancialGrid";
 import {
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_COLORS,
@@ -19,6 +22,11 @@ export default async function AreaDetailPage({
   const { areaSlug } = await params;
   const area = await getAreaWithStats(areaSlug);
   if (!area) notFound();
+
+  const session = await auth();
+  const canEditFinancials = session?.user
+    ? canManageArea(session.user as SessionUser, area.id)
+    : false;
 
   const progress =
     area.totalTasks > 0
@@ -57,6 +65,16 @@ export default async function AreaDetailPage({
             <span>{area.completedTasks} concluidas</span>
           </div>
         </div>
+
+        <section>
+          <h3 className="text-lg font-bold text-navy mb-3">Financeiro da Área</h3>
+          <FinancialGrid
+            entityType="area"
+            entityId={area.id}
+            canEdit={canEditFinancials}
+            title="Forecast · Budget · Actual (área)"
+          />
+        </section>
 
         <section>
           <h3 className="text-lg font-bold text-navy mb-3">Projetos</h3>
