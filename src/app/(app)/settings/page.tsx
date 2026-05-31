@@ -37,6 +37,18 @@ export default async function SettingsPage() {
           </div>
         </div>
 
+        {isAdmin && (
+          <a
+            href="/admin/users"
+            className="block bg-white rounded-xl border border-gray-100 p-5 hover:border-gray-200 hover:shadow-md transition-all"
+          >
+            <h3 className="text-sm font-bold text-navy">Gerenciar Usuários</h3>
+            <p className="text-xs text-gray-400">
+              Criar/editar usuários, definir papéis e atribuir áreas.
+            </p>
+          </a>
+        )}
+
         {isAdmin && areas.length > 0 && (
           <AreaConfigPanel
             areas={areas.map((a) => ({

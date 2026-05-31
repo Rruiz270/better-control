@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  UserCog,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { href: "/team", label: "Equipe", icon: Users },
   { href: "/settings/automations", label: "Automacoes", icon: Zap },
   { href: "/activity", label: "Atividade", icon: Activity },
+  { href: "/admin/users", label: "Usuarios", icon: UserCog, adminOnly: true },
   { href: "/settings", label: "Config", icon: Settings },
 ];
 
@@ -62,7 +64,7 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 py-4 space-y-1 px-2">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => !item.adminOnly || userRole === "admin").map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
           return (
