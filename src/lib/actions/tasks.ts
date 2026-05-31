@@ -2,34 +2,51 @@
 
 import { db } from "@/db";
 import { tasks, taskAssignees, users, activityLog, projects } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { evaluateRules } from "./automations";
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/authorization";
+import {
+  requireProjectAccess,
+  requireTaskAccess,
+} from "@/lib/authorization";
+
+type Assignee = { userId: string; name: string; email: string };
+type TaskWithAssignees = typeof tasks.$inferSelect & { assignees: Assignee[] };
 
 export async function getTasksByProject(projectId: string) {
-  const projectTasks = await db
-    .select()
+  // Single query (task LEFT JOIN assignees LEFT JOIN users) grouped in memory,
+  // instead of one round-trip per task. neon-http bills every query as its own
+  // HTTP request, so the previous N+1 was literally N+1 network calls.
+  const rows = await db
+    .select({
+      task: tasks,
+      assigneeId: taskAssignees.userId,
+      assigneeName: users.name,
+      assigneeEmail: users.email,
+    })
     .from(tasks)
+    .leftJoin(taskAssignees, eq(taskAssignees.taskId, tasks.id))
+    .leftJoin(users, eq(taskAssignees.userId, users.id))
     .where(eq(tasks.projectId, projectId))
     .orderBy(tasks.position);
 
-  const tasksWithAssignees = await Promise.all(
-    projectTasks.map(async (task) => {
-      const assignees = await db
-        .select({
-          userId: taskAssignees.userId,
-          name: users.name,
-          email: users.email,
-        })
-        .from(taskAssignees)
-        .innerJoin(users, eq(taskAssignees.userId, users.id))
-        .where(eq(taskAssignees.taskId, task.id));
-      return { ...task, assignees };
-    })
-  );
+  const byTask = new Map<string, TaskWithAssignees>();
+  for (const row of rows) {
+    let entry = byTask.get(row.task.id);
+    if (!entry) {
+      entry = { ...row.task, assignees: [] };
+      byTask.set(row.task.id, entry);
+    }
+    if (row.assigneeId && row.assigneeName && row.assigneeEmail) {
+      entry.assignees.push({
+        userId: row.assigneeId,
+        name: row.assigneeName,
+        email: row.assigneeEmail,
+      });
+    }
+  }
 
-  return tasksWithAssignees;
+  return Array.from(byTask.values());
 }
 
 export async function createTask(data: {
@@ -40,35 +57,40 @@ export async function createTask(data: {
   dueDate?: string;
   assigneeIds?: string[];
 }) {
-  const session = await requireSession();
+  const session = await requireProjectAccess(data.projectId, { contributor: true });
   const { assigneeIds, ...taskData } = data;
 
-  const [task] = await db
-    .insert(tasks)
-    .values({
-      ...taskData,
-      createdBy: session.user.id,
-    })
-    .returning();
+  // Pre-generate the id so task, assignees and activity log go out in a single
+  // db.batch() (one HTTP request, executed as one transaction). neon-http has
+  // no interactive transactions, so batch() is how we get atomicity here.
+  const taskId = crypto.randomUUID();
 
-  if (assigneeIds?.length) {
-    await db.insert(taskAssignees).values(
-      assigneeIds.map((userId) => ({
-        taskId: task.id,
-        userId,
-      }))
-    );
-  }
-
-  await db.insert(activityLog).values({
+  const insertTask = db.insert(tasks).values({
+    ...taskData,
+    id: taskId,
+    createdBy: session.user.id,
+  });
+  const insertLog = db.insert(activityLog).values({
     userId: session.user.id,
     entityType: "task",
-    entityId: task.id,
+    entityId: taskId,
     action: "created",
-    details: { title: task.title },
+    details: { title: taskData.title },
   });
 
+  if (assigneeIds?.length) {
+    const insertAssignees = db
+      .insert(taskAssignees)
+      .values(assigneeIds.map((userId) => ({ taskId, userId })));
+    await db.batch([insertTask, insertAssignees, insertLog]);
+  } else {
+    await db.batch([insertTask, insertLog]);
+  }
+
   revalidatePath("/", "layout");
+  // Return the full row (with DB defaults like status/position/timestamps) so
+  // callers can optimistically append it to their list.
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   return task;
 }
 
@@ -76,7 +98,7 @@ export async function updateTaskStatus(
   taskId: string,
   status: "nao_iniciada" | "em_andamento" | "concluida" | "bloqueada" | "cancelada"
 ) {
-  const session = await requireSession();
+  const session = await requireTaskAccess(taskId, { contributor: true });
 
   const updates: Record<string, unknown> = {
     status,
@@ -89,15 +111,16 @@ export async function updateTaskStatus(
   const [existingTask] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   const oldStatus = existingTask?.status;
 
-  await db.update(tasks).set(updates).where(eq(tasks.id, taskId));
-
-  await db.insert(activityLog).values({
-    userId: session.user.id,
-    entityType: "task",
-    entityId: taskId,
-    action: "status_changed",
-    details: { oldStatus, newStatus: status },
-  });
+  await db.batch([
+    db.update(tasks).set(updates).where(eq(tasks.id, taskId)),
+    db.insert(activityLog).values({
+      userId: session.user.id,
+      entityType: "task",
+      entityId: taskId,
+      action: "status_changed",
+      details: { oldStatus, newStatus: status },
+    }),
+  ]);
 
   if (existingTask) {
     const [project] = await db.select().from(projects).where(eq(projects.id, existingTask.projectId)).limit(1);
@@ -123,7 +146,7 @@ export async function updateTask(
     dueDate?: string | null;
   }
 ) {
-  await requireSession();
+  await requireTaskAccess(taskId, { contributor: true });
   await db
     .update(tasks)
     .set({ ...data, updatedAt: new Date() })
@@ -133,16 +156,17 @@ export async function updateTask(
 }
 
 export async function deleteTask(taskId: string) {
-  const session = await requireSession();
+  const session = await requireTaskAccess(taskId);
 
-  await db.insert(activityLog).values({
-    userId: session.user.id,
-    entityType: "task",
-    entityId: taskId,
-    action: "deleted",
-  });
-
-  await db.delete(tasks).where(eq(tasks.id, taskId));
+  await db.batch([
+    db.insert(activityLog).values({
+      userId: session.user.id,
+      entityType: "task",
+      entityId: taskId,
+      action: "deleted",
+    }),
+    db.delete(tasks).where(eq(tasks.id, taskId)),
+  ]);
   revalidatePath("/", "layout");
 }
 

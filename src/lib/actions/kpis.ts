@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { kpis, kpiHistory } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/authorization";
+import { requireProjectAccess, requireKpiAccess } from "@/lib/authorization";
 
 export async function getKpisByProject(projectId: string) {
   return db.select().from(kpis).where(eq(kpis.projectId, projectId));
@@ -20,7 +20,7 @@ export async function createKpi(data: {
   unit?: string;
   period?: string;
 }) {
-  await requireSession();
+  await requireProjectAccess(data.projectId);
   const [kpi] = await db
     .insert(kpis)
     .values({ ...data, isCustom: true })
@@ -34,7 +34,7 @@ export async function updateKpi(
   kpiId: string,
   data: { currentValue?: string; targetValue?: string; period?: string }
 ) {
-  await requireSession();
+  await requireKpiAccess(kpiId);
 
   const [existing] = await db
     .select()
@@ -59,7 +59,7 @@ export async function updateKpi(
 }
 
 export async function deleteKpi(kpiId: string) {
-  await requireSession();
+  await requireKpiAccess(kpiId);
   await db.delete(kpis).where(eq(kpis.id, kpiId));
   revalidatePath("/", "layout");
 }

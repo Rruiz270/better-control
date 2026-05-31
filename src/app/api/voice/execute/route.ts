@@ -2,7 +2,14 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { tasks, projects, areas, notes, activityLog } from "@/db/schema";
-import { eq, ilike, and } from "drizzle-orm";
+import { eq, ilike } from "drizzle-orm";
+import {
+  AuthorizationError,
+  requireProjectAccess,
+  requireAreaAccess,
+  canContributeToArea,
+  type SessionUser,
+} from "@/lib/authorization";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -12,6 +19,24 @@ export async function POST(req: Request) {
 
   const { command } = await req.json();
   const userId = session.user.id;
+  const user = session.user as SessionUser;
+
+  // For non-admins, voice fallbacks must stay inside the user's own area —
+  // otherwise "crie tarefa X" with no project named could land in any area.
+  const areaScope = user.role === "admin" ? undefined : user.areaId ?? "__none__";
+
+  async function defaultProjectId(): Promise<string | null> {
+    if (areaScope === undefined) {
+      const [p] = await db.select({ id: projects.id }).from(projects).limit(1);
+      return p?.id ?? null;
+    }
+    const [p] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.areaId, areaScope))
+      .limit(1);
+    return p?.id ?? null;
+  }
 
   try {
     switch (command.type) {
@@ -27,35 +52,35 @@ export async function POST(req: Request) {
           projectId = proj?.id || null;
         }
 
-        if (!projectId) {
-          const allProjects = await db.select().from(projects).limit(1);
-          projectId = allProjects[0]?.id || null;
-        }
+        if (!projectId) projectId = await defaultProjectId();
 
         if (!projectId) {
           return NextResponse.json({
             ok: false,
-            message: "Nenhum projeto encontrado.",
+            message: "Nenhum projeto acessivel encontrado.",
           });
         }
 
-        const [task] = await db
-          .insert(tasks)
-          .values({
+        // Throws AuthorizationError (→ 403) if the user can't touch this area.
+        await requireProjectAccess(projectId, { contributor: true });
+
+        const taskId = crypto.randomUUID();
+        await db.batch([
+          db.insert(tasks).values({
+            id: taskId,
             projectId,
             title: command.title,
             priority: command.priority || "media",
             createdBy: userId,
-          })
-          .returning();
-
-        await db.insert(activityLog).values({
-          userId,
-          entityType: "task",
-          entityId: task.id,
-          action: "created",
-          details: { title: task.title, via: "voice" },
-        });
+          }),
+          db.insert(activityLog).values({
+            userId,
+            entityType: "task",
+            entityId: taskId,
+            action: "created",
+            details: { title: command.title, via: "voice" },
+          }),
+        ]);
 
         return NextResponse.json({
           ok: true,
@@ -83,40 +108,44 @@ export async function POST(req: Request) {
           }
         }
 
-        if (!areaId) {
-          const allAreas = await db.select().from(areas).limit(1);
-          areaId = allAreas[0]?.id || null;
+        // Fallback: an area the user can actually manage (their own, for heads).
+        if (!areaId) areaId = areaScope === undefined ? null : areaScope;
+        if (!areaId && areaScope === undefined) {
+          const [a] = await db.select({ id: areas.id }).from(areas).limit(1);
+          areaId = a?.id || null;
         }
 
         if (!areaId) {
           return NextResponse.json({
             ok: false,
-            message: "Nenhuma area encontrada.",
+            message: "Nenhuma area acessivel encontrada.",
           });
         }
+
+        await requireAreaAccess(areaId);
 
         const slug = command.name
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-|-$/g, "");
 
-        const [proj] = await db
-          .insert(projects)
-          .values({
+        const projectId = crypto.randomUUID();
+        await db.batch([
+          db.insert(projects).values({
+            id: projectId,
             areaId,
             name: command.name,
-            slug: slug || `projeto-${Date.now()}`,
+            slug: slug || `projeto-${projectId.slice(0, 8)}`,
             createdBy: userId,
-          })
-          .returning();
-
-        await db.insert(activityLog).values({
-          userId,
-          entityType: "project",
-          entityId: proj.id,
-          action: "created",
-          details: { name: command.name, via: "voice" },
-        });
+          }),
+          db.insert(activityLog).values({
+            userId,
+            entityType: "project",
+            entityId: projectId,
+            action: "created",
+            details: { name: command.name, via: "voice" },
+          }),
+        ]);
 
         return NextResponse.json({
           ok: true,
@@ -125,16 +154,20 @@ export async function POST(req: Request) {
       }
 
       case "update_task": {
-        const [task] = await db
-          .select()
+        // Match only tasks in areas the user may touch, so voice can't flip the
+        // status of a task in another area by title collision.
+        const candidates = await db
+          .select({ id: tasks.id, title: tasks.title, areaId: projects.areaId })
           .from(tasks)
-          .where(ilike(tasks.title, `%${command.title}%`))
-          .limit(1);
+          .innerJoin(projects, eq(tasks.projectId, projects.id))
+          .where(ilike(tasks.title, `%${command.title}%`));
+
+        const task = candidates.find((t) => canContributeToArea(user, t.areaId));
 
         if (!task) {
           return NextResponse.json({
             ok: false,
-            message: `Tarefa "${command.title}" nao encontrada.`,
+            message: `Tarefa "${command.title}" nao encontrada (ou sem permissao).`,
           });
         }
 
@@ -145,15 +178,16 @@ export async function POST(req: Request) {
         };
         if (command.status === "concluida") updates.completedAt = new Date();
 
-        await db.update(tasks).set(updates).where(eq(tasks.id, task.id));
-
-        await db.insert(activityLog).values({
-          userId,
-          entityType: "task",
-          entityId: task.id,
-          action: "status_changed",
-          details: { title: task.title, newStatus: command.status, via: "voice" },
-        });
+        await db.batch([
+          db.update(tasks).set(updates).where(eq(tasks.id, task.id)),
+          db.insert(activityLog).values({
+            userId,
+            entityType: "task",
+            entityId: task.id,
+            action: "status_changed",
+            details: { title: task.title, newStatus: command.status, via: "voice" },
+          }),
+        ]);
 
         return NextResponse.json({
           ok: true,
@@ -173,14 +207,13 @@ export async function POST(req: Request) {
           entityId = proj?.id || null;
         }
 
-        if (!entityId) {
-          const allProjects = await db.select().from(projects).limit(1);
-          entityId = allProjects[0]?.id || null;
-        }
+        if (!entityId) entityId = await defaultProjectId();
 
         if (!entityId) {
-          return NextResponse.json({ ok: false, message: "Projeto nao encontrado." });
+          return NextResponse.json({ ok: false, message: "Projeto acessivel nao encontrado." });
         }
+
+        await requireProjectAccess(entityId, { contributor: true });
 
         await db.insert(notes).values({
           entityType: "project",
@@ -203,6 +236,9 @@ export async function POST(req: Request) {
         });
     }
   } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json({ ok: false, message: error.message }, { status: 403 });
+    }
     console.error("Voice command error:", error);
     return NextResponse.json({
       ok: false,

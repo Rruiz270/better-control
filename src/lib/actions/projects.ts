@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { projects, tasks, kpis, projectMembers, users } from "@/db/schema";
 import { eq, and, count, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/authorization";
+import { requireAreaAccess, requireProjectAccess } from "@/lib/authorization";
 
 export async function getProjectsByArea(areaId: string) {
   return db.select().from(projects).where(eq(projects.areaId, areaId));
@@ -68,7 +68,7 @@ export async function updateProjectStatus(
   projectId: string,
   status: string
 ) {
-  await requireSession();
+  await requireProjectAccess(projectId);
   await db
     .update(projects)
     .set({
@@ -89,7 +89,7 @@ export async function createProject(data: {
   startDate?: string;
   targetDate?: string;
 }) {
-  const session = await requireSession();
+  const session = await requireAreaAccess(data.areaId);
   const [project] = await db
     .insert(projects)
     .values({

@@ -10,7 +10,17 @@ async function main() {
 
   console.log("Seeding Better Control...");
 
-  const pwHash = await hash("better2026", 12);
+  // Never commit a real password to a public repo. Use SEED_PASSWORD, or let
+  // the script generate a one-off random password and print it once.
+  const seedPassword = process.env.SEED_PASSWORD ?? crypto.randomUUID().slice(0, 14);
+  if (!process.env.SEED_PASSWORD) {
+    console.warn(
+      `\n⚠️  SEED_PASSWORD nao definido. Senha gerada para TODOS os usuarios:\n` +
+        `    ${seedPassword}\n` +
+        `    Anote-a agora e troque depois. Defina SEED_PASSWORD para escolher uma.\n`
+    );
+  }
+  const pwHash = await hash(seedPassword, 12);
 
   const [carlos, raphael, helen, bruno, gilberto, membro1, membro2, membro3, membro4] =
     await db

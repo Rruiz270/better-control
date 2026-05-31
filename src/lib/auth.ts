@@ -4,9 +4,10 @@ import { compare } from "bcryptjs";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { authConfig } from "./auth.config";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  trustHost: true,
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -41,26 +42,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
-  pages: { signIn: "/login" },
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        token.role = (user as any).role as string;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        token.areaId = (user as any).areaId as string | null;
-      }
-      return token;
-    },
-    session({ session, token }) {
-      session.user.id = token.id as string;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (session.user as any).role = token.role;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (session.user as any).areaId = token.areaId;
-      return session;
-    },
-  },
 });

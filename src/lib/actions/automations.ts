@@ -4,7 +4,15 @@ import { db } from "@/db";
 import { automationRules, activityLog } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/authorization";
+import {
+  requireSession,
+  requireAreaAccess,
+  requireProjectAccess,
+  requireRuleAccess,
+  AuthorizationError,
+  isAdmin,
+  type SessionUser,
+} from "@/lib/authorization";
 
 export async function getAutomationRules() {
   return db.select().from(automationRules).orderBy(automationRules.createdAt);
@@ -19,7 +27,20 @@ export async function createAutomationRule(data: {
   areaId?: string;
   projectId?: string;
 }) {
-  const session = await requireSession();
+  // Scope the rule to whatever it targets: area heads manage their own area's
+  // rules, project rules require project access, and global rules are admin-only.
+  let session;
+  if (data.areaId) {
+    session = await requireAreaAccess(data.areaId);
+  } else if (data.projectId) {
+    session = await requireProjectAccess(data.projectId);
+  } else {
+    session = await requireSession();
+    if (!isAdmin(session.user as SessionUser)) {
+      throw new AuthorizationError("Apenas admins podem criar regras globais.");
+    }
+  }
+
   const [rule] = await db
     .insert(automationRules)
     .values({
@@ -33,7 +54,7 @@ export async function createAutomationRule(data: {
 }
 
 export async function toggleAutomationRule(ruleId: string, enabled: boolean) {
-  await requireSession();
+  await requireRuleAccess(ruleId);
   await db
     .update(automationRules)
     .set({ enabled })
@@ -42,7 +63,7 @@ export async function toggleAutomationRule(ruleId: string, enabled: boolean) {
 }
 
 export async function deleteAutomationRule(ruleId: string) {
-  await requireSession();
+  await requireRuleAccess(ruleId);
   await db.delete(automationRules).where(eq(automationRules.id, ruleId));
   revalidatePath("/", "layout");
 }

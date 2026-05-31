@@ -6,6 +6,10 @@ export type VoiceCommand =
   | { type: "navigate"; destination: string }
   | { type: "unknown"; raw: string };
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 const STATUS_MAP: Record<string, string> = {
   "nao vai sair": "bloqueada",
   "nao vai acontecer": "cancelada",
@@ -94,8 +98,12 @@ export function parseVoiceCommand(raw: string): VoiceCommand {
 
   // Update task status: "a tarefa X nao vai sair" / "tarefa X concluida"
   for (const [phrase, status] of Object.entries(STATUS_MAP)) {
+    // NOTE: build with String.raw so the "\s" whitespace classes survive — a
+    // plain template literal turns "\s" into the literal letter "s", which used
+    // to silently break every voice status-update command.
+    const p = escapeRegExp(phrase);
     const updateMatch = text.match(
-      new RegExp(`(?:a?\s*tarefa\s+(.+?)\s+${phrase}|(.+?)\s+${phrase})`)
+      new RegExp(String.raw`(?:a?\s*tarefa\s+(.+?)\s+${p}|(.+?)\s+${p})`)
     );
     if (updateMatch) {
       const title = (updateMatch[1] || updateMatch[2] || "").trim();

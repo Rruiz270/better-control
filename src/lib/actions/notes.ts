@@ -4,7 +4,11 @@ import { db } from "@/db";
 import { notes, users } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/authorization";
+import {
+  requireProjectAccess,
+  requireTaskAccess,
+  requireNoteDeleteAccess,
+} from "@/lib/authorization";
 
 export async function getNotesByEntity(
   entityType: "project" | "task",
@@ -37,7 +41,10 @@ export async function createNote(data: {
   audioUrl?: string;
   transcription?: string;
 }) {
-  const session = await requireSession();
+  const session =
+    data.entityType === "project"
+      ? await requireProjectAccess(data.entityId, { contributor: true })
+      : await requireTaskAccess(data.entityId, { contributor: true });
   const [note] = await db
     .insert(notes)
     .values({ ...data, userId: session.user.id })
@@ -48,7 +55,7 @@ export async function createNote(data: {
 }
 
 export async function deleteNote(noteId: string) {
-  await requireSession();
+  await requireNoteDeleteAccess(noteId);
   await db.delete(notes).where(eq(notes.id, noteId));
   revalidatePath("/", "layout");
 }
