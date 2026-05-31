@@ -7,7 +7,8 @@ import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
 import Badge from "@/components/shared/Badge";
-import FinancialGrid from "@/components/financials/FinancialGrid";
+import EntityFinancials from "@/components/financials/EntityFinancials";
+import DeliveryBoard from "@/components/financials/DeliveryBoard";
 import {
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_COLORS,
@@ -67,14 +68,29 @@ export default async function AreaDetailPage({
         </div>
 
         <section>
-          <h3 className="text-lg font-bold text-navy mb-3">Financeiro da Área</h3>
-          <FinancialGrid
+          <h3 className="text-lg font-bold text-navy mb-3">
+            Financeiro da Área{" "}
+            <span className="text-xs font-medium text-gray-400 ml-1">
+              ({area.profile === "suporte" ? "Custo/Entrega" : "Receita"} · meta{" "}
+              {Number(area.targetMultiplier)}x)
+            </span>
+          </h3>
+          <EntityFinancials
             entityType="area"
             entityId={area.id}
             canEdit={canEditFinancials}
-            title="Forecast · Budget · Actual (área)"
+            profile={area.profile}
+            multiplier={Number(area.targetMultiplier)}
+            title="Financeiro da área"
           />
         </section>
+
+        {area.profile === "suporte" && (
+          <section>
+            <h3 className="text-lg font-bold text-navy mb-3">Entregas (prazo)</h3>
+            <DeliveryBoard areaSlug={areaSlug} projects={area.projects} />
+          </section>
+        )}
 
         <section>
           <h3 className="text-lg font-bold text-navy mb-3">Projetos</h3>

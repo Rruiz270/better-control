@@ -58,6 +58,8 @@ async function main() {
         color: "#8B5CF6",
         icon: "Code",
         headId: bruno.id,
+        profile: "suporte" as const,
+        targetMultiplier: "1",
       },
       {
         name: "Better EdTech",

@@ -68,6 +68,10 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// receita = área que gera receita (forecast/budget/actual + custo).
+// suporte = centro de custo/entrega (valor gerado manual + custo + deadlines).
+export const areaProfileEnum = pgEnum("area_profile", ["receita", "suporte"]);
+
 export const areas = pgTable("areas", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
@@ -76,6 +80,11 @@ export const areas = pgTable("areas", {
   color: text("color").notNull(),
   icon: text("icon").notNull(),
   headId: uuid("head_id").references(() => users.id),
+  // Regra dos 30x: meta de geração = targetMultiplier × custo.
+  profile: areaProfileEnum("profile").notNull().default("receita"),
+  targetMultiplier: numeric("target_multiplier", { precision: 6, scale: 2 })
+    .notNull()
+    .default("30"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -267,6 +276,12 @@ export const financialMetricEnum = pgEnum("financial_metric", [
   "budget",
   "actual",
 ]);
+// receita: usa forecast/budget/actual · custo: budget/actual · valor_gerado: actual (manual, p/ áreas de suporte)
+export const financialStreamEnum = pgEnum("financial_stream", [
+  "receita",
+  "custo",
+  "valor_gerado",
+]);
 
 export const financialPlans = pgTable(
   "financial_plans",
@@ -275,6 +290,7 @@ export const financialPlans = pgTable(
     entityType: financialEntityEnum("entity_type").notNull(),
     entityId: uuid("entity_id").notNull(),
     year: integer("year").notNull(),
+    stream: financialStreamEnum("stream").notNull().default("receita"),
     metric: financialMetricEnum("metric").notNull(),
     m1: numeric("m1", { precision: 14, scale: 2 }).notNull().default("0"),
     m2: numeric("m2", { precision: 14, scale: 2 }).notNull().default("0"),
@@ -296,6 +312,7 @@ export const financialPlans = pgTable(
       table.entityType,
       table.entityId,
       table.year,
+      table.stream,
       table.metric
     ),
   ]

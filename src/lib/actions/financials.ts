@@ -14,19 +14,31 @@ import {
 } from "@/lib/authorization";
 
 export type FinancialEntityType = "area" | "project";
+export type FinancialStream = "receita" | "custo" | "valor_gerado";
 export type FinancialMetric = "forecast" | "budget" | "actual";
 
-/** Forecast/Budget/Actual, cada um com 12 valores mensais (Jan..Dez). */
-export type FinancialGrid = Record<FinancialMetric, number[]>;
+/** Quais métricas cada stream usa. */
+export const STREAM_METRICS: Record<FinancialStream, FinancialMetric[]> = {
+  receita: ["forecast", "budget", "actual"],
+  custo: ["budget", "actual"],
+  valor_gerado: ["actual"],
+};
 
-const METRICS: FinancialMetric[] = ["forecast", "budget", "actual"];
+/** Todos os streams/métricas de uma entidade+ano. months sempre length 12. */
+export type FinancialData = {
+  receita: Record<"forecast" | "budget" | "actual", number[]>;
+  custo: Record<"budget" | "actual", number[]>;
+  valor_gerado: Record<"actual", number[]>;
+};
+
 const MONTH_KEYS = Array.from({ length: 12 }, (_, i) => `m${i + 1}` as const);
+const zeros = () => Array(12).fill(0) as number[];
 
-function emptyGrid(): FinancialGrid {
+function emptyData(): FinancialData {
   return {
-    forecast: Array(12).fill(0),
-    budget: Array(12).fill(0),
-    actual: Array(12).fill(0),
+    receita: { forecast: zeros(), budget: zeros(), actual: zeros() },
+    custo: { budget: zeros(), actual: zeros() },
+    valor_gerado: { actual: zeros() },
   };
 }
 
@@ -49,18 +61,18 @@ async function assertCanView(entityType: FinancialEntityType, entityId: string) 
   return session;
 }
 
-/** Editing budgets is a management action (admin or head of the area). */
+/** Editing budgets/financials is a management action (admin or area head). */
 async function assertCanEdit(entityType: FinancialEntityType, entityId: string) {
   return entityType === "area"
     ? requireAreaAccess(entityId)
     : requireProjectAccess(entityId);
 }
 
-export async function getFinancialGrid(
+export async function getFinancials(
   entityType: FinancialEntityType,
   entityId: string,
   year: number
-): Promise<FinancialGrid> {
+): Promise<FinancialData> {
   await assertCanView(entityType, entityId);
 
   const rows = await db
@@ -74,13 +86,15 @@ export async function getFinancialGrid(
       )
     );
 
-  const grid = emptyGrid();
+  const data = emptyData();
   for (const row of rows) {
-    grid[row.metric as FinancialMetric] = MONTH_KEYS.map((k) =>
-      Number(row[k as keyof typeof row] ?? 0)
-    );
+    const stream = row.stream as FinancialStream;
+    const metric = row.metric as FinancialMetric;
+    const months = MONTH_KEYS.map((k) => Number(row[k as keyof typeof row] ?? 0));
+    // metric may not exist on every stream's type, but the DB guarantees valid combos.
+    (data[stream] as Record<string, number[]>)[metric] = months;
   }
-  return grid;
+  return data;
 }
 
 /** Distinct years that already have data, always including the current year. */
@@ -111,16 +125,17 @@ function monthFields(months: number[]): Record<string, string> {
   );
 }
 
-/** Upsert one metric row (forecast/budget/actual) for an entity+year. */
+/** Upsert one (stream, metric) row for an entity+year. */
 export async function saveFinancialRow(input: {
   entityType: FinancialEntityType;
   entityId: string;
   year: number;
+  stream: FinancialStream;
   metric: FinancialMetric;
   months: number[]; // length 12
 }) {
-  if (!METRICS.includes(input.metric)) {
-    throw new AuthorizationError("Métrica inválida.");
+  if (!STREAM_METRICS[input.stream]?.includes(input.metric)) {
+    throw new AuthorizationError("Combinação de stream/métrica inválida.");
   }
   const session = await assertCanEdit(input.entityType, input.entityId);
 
@@ -129,6 +144,7 @@ export async function saveFinancialRow(input: {
     entityType: input.entityType,
     entityId: input.entityId,
     year: input.year,
+    stream: input.stream,
     metric: input.metric,
     updatedBy: session.user.id,
     updatedAt: new Date(),
@@ -143,6 +159,7 @@ export async function saveFinancialRow(input: {
         financialPlans.entityType,
         financialPlans.entityId,
         financialPlans.year,
+        financialPlans.stream,
         financialPlans.metric,
       ],
       set: { ...fields, updatedBy: session.user.id, updatedAt: new Date() },

@@ -3,10 +3,14 @@ export const dynamic = "force-dynamic";
 import { auth } from "@/lib/auth";
 import Header from "@/components/layout/Header";
 import SignOutButton from "@/components/shared/SignOutButton";
+import AreaConfigPanel from "@/components/settings/AreaConfigPanel";
+import { getAreas } from "@/lib/actions/areas";
 
 export default async function SettingsPage() {
   const session = await auth();
   const user = session?.user;
+  const isAdmin = (user as Record<string, unknown>)?.role === "admin";
+  const areas = isAdmin ? await getAreas() : [];
 
   return (
     <div className="min-h-screen">
@@ -32,6 +36,17 @@ export default async function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {isAdmin && areas.length > 0 && (
+          <AreaConfigPanel
+            areas={areas.map((a) => ({
+              id: a.id,
+              name: a.name,
+              profile: a.profile,
+              targetMultiplier: a.targetMultiplier,
+            }))}
+          />
+        )}
 
         <SignOutButton />
       </div>

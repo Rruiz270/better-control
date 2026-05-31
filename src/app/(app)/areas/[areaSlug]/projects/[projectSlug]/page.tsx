@@ -118,6 +118,8 @@ export default async function ProjectDetailPage({
           startDate={project.startDate}
           targetDate={project.targetDate}
           canEditFinancials={canEditFinancials}
+          profile={project.area.profile}
+          multiplier={Number(project.area.targetMultiplier)}
         />
       </div>
     </div>

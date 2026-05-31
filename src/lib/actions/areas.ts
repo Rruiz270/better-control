@@ -3,6 +3,8 @@
 import { db } from "@/db";
 import { areas, projects, users, tasks, kpis } from "@/db/schema";
 import { eq, count, sql } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { requireSession, isAdmin, AuthorizationError, type SessionUser } from "@/lib/authorization";
 
 export async function getAreas() {
   const result = await db
@@ -14,12 +16,34 @@ export async function getAreas() {
       color: areas.color,
       icon: areas.icon,
       headId: areas.headId,
+      profile: areas.profile,
+      targetMultiplier: areas.targetMultiplier,
       headName: users.name,
     })
     .from(areas)
     .leftJoin(users, eq(areas.headId, users.id));
 
   return result;
+}
+
+/** Admin define o perfil (receita/suporte) e o multiplicador alvo (regra 30x) da área. */
+export async function updateAreaConfig(
+  areaId: string,
+  data: { profile: "receita" | "suporte"; targetMultiplier: number }
+) {
+  const session = await requireSession();
+  if (!isAdmin(session.user as SessionUser)) {
+    throw new AuthorizationError("Apenas admins configuram áreas.");
+  }
+  await db
+    .update(areas)
+    .set({
+      profile: data.profile,
+      targetMultiplier: String(data.targetMultiplier),
+      updatedAt: new Date(),
+    })
+    .where(eq(areas.id, areaId));
+  revalidatePath("/", "layout");
 }
 
 export async function getAreaBySlug(slug: string) {
