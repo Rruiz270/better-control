@@ -146,10 +146,9 @@ async function main() {
     console.log("KPIs created:", kpiSamples.length);
   }
 
-  // Sample tasks
+  // Sample tasks — todos os projetos ativos (cobre todas as áreas, não só Idiomas)
   const taskSamples = createdProjects
     .filter((p) => p.status === "em_execucao")
-    .slice(0, 6)
     .flatMap((p) => [
       { projectId: p.id, title: `Definir escopo do ${p.name}`, status: "concluida" as const, priority: "alta" as const, createdBy: raphael.id },
       { projectId: p.id, title: `Desenvolver MVP ${p.name}`, status: "em_andamento" as const, priority: "critica" as const, createdBy: raphael.id },
