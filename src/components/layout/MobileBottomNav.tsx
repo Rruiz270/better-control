@@ -12,7 +12,7 @@ import {
 
 const TABS = [
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
-  { href: "/areas", label: "Areas", icon: FolderKanban },
+  { href: "/areas", label: "Áreas", icon: FolderKanban },
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Perfil", icon: User },

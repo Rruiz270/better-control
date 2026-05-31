@@ -28,10 +28,10 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 const ACTION_LABELS: Record<string, string> = {
-  send_notification: "Enviar notificacao",
+  send_notification: "Enviar notificação",
   send_whatsapp: "Enviar WhatsApp",
   change_status: "Mudar status",
-  assign_user: "Atribuir usuario",
+  assign_user: "Atribuir usuário",
   create_activity: "Registrar atividade",
 };
 
@@ -75,7 +75,7 @@ export default function AutomationsList({
   }
 
   function handleDelete(ruleId: string) {
-    if (!confirm("Excluir esta automacao?")) return;
+    if (!confirm("Excluir esta automação?")) return;
     setRules((prev) => prev.filter((r) => r.id !== ruleId));
     startTransition(() => {
       deleteAutomationRule(ruleId);
@@ -88,10 +88,10 @@ export default function AutomationsList({
         <div>
           <h2 className="text-lg font-bold text-navy flex items-center gap-2">
             <Zap size={20} className="text-cyan" />
-            Automacoes
+            Automações
           </h2>
           <p className="text-xs text-gray-400 mt-0.5">
-            Regras automaticas: quando algo acontece → uma acao e executada
+            Regras automaticas: quando algo acontece → uma ação e executada
           </p>
         </div>
         <button
@@ -113,7 +113,7 @@ export default function AutomationsList({
             type="text"
             value={newRule.name}
             onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
-            placeholder="Nome da automacao (ex: Notificar head quando tarefa atrasa)"
+            placeholder="Nome da automação (ex: Notificar head quando tarefa atrasa)"
             className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan/40"
             autoFocus
           />
@@ -224,7 +224,7 @@ export default function AutomationsList({
         {rules.length === 0 && !showAdd && (
           <div className="text-center py-12">
             <Zap size={48} className="text-gray-200 mx-auto mb-3" />
-            <p className="text-sm text-gray-400">Nenhuma automacao criada.</p>
+            <p className="text-sm text-gray-400">Nenhuma automação criada.</p>
             <button
               onClick={() => setShowAdd(true)}
               className="mt-2 text-sm text-cyan font-medium hover:underline"

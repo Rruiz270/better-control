@@ -30,10 +30,10 @@ type Task = {
 };
 
 const STATUS_CONFIG = [
-  { key: "nao_iniciada", label: "Nao Iniciada", icon: Circle, color: "text-gray-400", bg: "bg-gray-50", border: "border-gray-200", dot: "bg-gray-300" },
+  { key: "nao_iniciada", label: "Não Iniciada", icon: Circle, color: "text-gray-400", bg: "bg-gray-50", border: "border-gray-200", dot: "bg-gray-300" },
   { key: "em_andamento", label: "Em Andamento", icon: Clock, color: "text-blue-500", bg: "bg-blue-50", border: "border-blue-200", dot: "bg-blue-500" },
   { key: "bloqueada", label: "Bloqueada", icon: Ban, color: "text-red-500", bg: "bg-red-50", border: "border-red-200", dot: "bg-red-500" },
-  { key: "concluida", label: "Concluida", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50", border: "border-green-200", dot: "bg-green-500" },
+  { key: "concluida", label: "Concluída", icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50", border: "border-green-200", dot: "bg-green-500" },
 ];
 
 function getDaysInfo(task: Task) {
@@ -179,9 +179,9 @@ export default function TaskPipeline({
               className="px-3 py-2 rounded-lg border border-gray-200 text-sm"
             >
               <option value="baixa">Baixa</option>
-              <option value="media">Media</option>
+              <option value="media">Média</option>
               <option value="alta">Alta</option>
-              <option value="critica">Critica</option>
+              <option value="critica">Crítica</option>
             </select>
             <input
               type="date"

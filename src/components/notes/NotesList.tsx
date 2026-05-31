@@ -47,7 +47,7 @@ export default function NotesList({
       });
       if (note) {
         setNotes((prev) => [
-          { ...note, userName: "Voce", createdAt: new Date(note.createdAt) },
+          { ...note, userName: "Você", createdAt: new Date(note.createdAt) },
           ...prev,
         ]);
         setText("");
@@ -76,7 +76,7 @@ export default function NotesList({
       win.SpeechRecognition || win.webkitSpeechRecognition;
 
     if (!SpeechRecognitionAPI) {
-      alert("Seu navegador nao suporta reconhecimento de voz.");
+      alert("Seu navegador não suporta reconhecimento de voz.");
       return;
     }
 

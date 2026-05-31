@@ -15,7 +15,7 @@ async function main() {
   const seedPassword = process.env.SEED_PASSWORD ?? crypto.randomUUID().slice(0, 14);
   if (!process.env.SEED_PASSWORD) {
     console.warn(
-      `\n⚠️  SEED_PASSWORD nao definido. Senha gerada para TODOS os usuarios:\n` +
+      `\n⚠️  SEED_PASSWORD não definido. Senha gerada para TODOS os usuarios:\n` +
         `    ${seedPassword}\n` +
         `    Anote-a agora e troque depois. Defina SEED_PASSWORD para escolher uma.\n`
     );
@@ -80,7 +80,7 @@ async function main() {
     ])
     .returning();
 
-  console.log("Areas created:", 4);
+  console.log("Áreas created:", 4);
 
   await db
     .update(schema.users)
@@ -112,7 +112,7 @@ async function main() {
     { areaId: aTech.id, name: "Santa Catarina", slug: "santa-catarina", description: "Projeto educacional de SC", status: "em_execucao" as const },
     { areaId: aTech.id, name: "Portal do Aluno", slug: "portal-aluno", description: "Plataforma de acesso do aluno", status: "em_execucao" as const },
     { areaId: aTech.id, name: "Projeto Financeiro", slug: "projeto-financeiro", description: "Sistema financeiro interno", status: "em_execucao" as const },
-    { areaId: aTech.id, name: "Gestao de Poker", slug: "poker", description: "App de gestao de poker", status: "descontinuado" as const },
+    { areaId: aTech.id, name: "Gestão de Poker", slug: "poker", description: "App de gestao de poker", status: "descontinuado" as const },
     // Instituto i10
     { areaId: aI10.id, name: "Santa Catarina", slug: "sc-i10", description: "Encomenda tecnologica SC", status: "em_execucao" as const },
     { areaId: aI10.id, name: "FUNDEB", slug: "fundeb", description: "Captacao e gestao FUNDEB", status: "em_execucao" as const },
@@ -137,7 +137,7 @@ async function main() {
     .slice(0, 8)
     .flatMap((p) => [
       { projectId: p.id, name: "Receita Mensal", category: "financial" as const, type: "currency" as const, targetValue: "50000", currentValue: "32000", unit: "BRL", period: "2026-05" },
-      { projectId: p.id, name: "Tarefas Concluidas", category: "operational" as const, type: "number" as const, targetValue: "20", currentValue: "12", unit: "tarefas" },
+      { projectId: p.id, name: "Tarefas Concluídas", category: "operational" as const, type: "number" as const, targetValue: "20", currentValue: "12", unit: "tarefas" },
       { projectId: p.id, name: "Taxa de Conversao", category: "commercial" as const, type: "percentage" as const, targetValue: "15", currentValue: "9.5", unit: "%" },
     ]);
 
@@ -153,7 +153,7 @@ async function main() {
       { projectId: p.id, title: `Definir escopo do ${p.name}`, status: "concluida" as const, priority: "alta" as const, createdBy: raphael.id },
       { projectId: p.id, title: `Desenvolver MVP ${p.name}`, status: "em_andamento" as const, priority: "critica" as const, createdBy: raphael.id },
       { projectId: p.id, title: `Testes de qualidade ${p.name}`, status: "nao_iniciada" as const, priority: "media" as const, createdBy: raphael.id, dueDate: "2026-06-15" },
-      { projectId: p.id, title: `Deploy producao ${p.name}`, status: "nao_iniciada" as const, priority: "media" as const, createdBy: raphael.id, dueDate: "2026-06-30" },
+      { projectId: p.id, title: `Deploy produção ${p.name}`, status: "nao_iniciada" as const, priority: "media" as const, createdBy: raphael.id, dueDate: "2026-06-30" },
     ]);
 
   if (taskSamples.length > 0) {

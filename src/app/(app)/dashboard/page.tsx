@@ -19,7 +19,7 @@ export default async function DashboardPage() {
   const allTasks = await getAllTasks();
 
   const [featured, ...others] = stats;
-  const userName = session?.user?.name?.split(" ")[0] || "Usuario";
+  const userName = session?.user?.name?.split(" ")[0] || "Usuário";
 
   const totalProjects = stats.reduce((s, a) => s + a.projectCount, 0);
   const totalTasks = allTasks.length;
@@ -31,7 +31,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="min-h-screen">
-      <Header title={`Ola, ${userName}`} />
+      <Header title={`Olá, ${userName}`} />
 
       <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
         {/* Quick stats */}
@@ -53,7 +53,7 @@ export default async function DashboardPage() {
           <div className="bg-white rounded-xl border border-gray-100 p-4 flex items-center gap-3">
             <div className="p-2 bg-green-50 rounded-lg"><CheckCircle size={18} className="text-green-500" /></div>
             <div>
-              <p className="text-xs text-gray-400">Concluidas</p>
+              <p className="text-xs text-gray-400">Concluídas</p>
               <p className="text-xl font-bold text-green-600">{completedTasks}</p>
             </div>
           </div>

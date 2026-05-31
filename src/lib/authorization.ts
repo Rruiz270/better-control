@@ -29,7 +29,7 @@ export async function getSession() {
 
 export async function requireSession() {
   const session = await getSession();
-  if (!session) throw new AuthorizationError("Sessao nao encontrada. Faca login.");
+  if (!session) throw new AuthorizationError("Sessão não encontrada. Faça login.");
   return session;
 }
 
@@ -90,7 +90,7 @@ export async function requireProjectAccess(
   opts: { contributor?: boolean } = {}
 ) {
   const areaId = await areaIdForProject(projectId);
-  if (!areaId) throw new AuthorizationError("Projeto nao encontrado.");
+  if (!areaId) throw new AuthorizationError("Projeto não encontrado.");
   return requireAreaAccess(areaId, opts);
 }
 
@@ -99,13 +99,13 @@ export async function requireTaskAccess(
   opts: { contributor?: boolean } = {}
 ) {
   const row = await areaIdForTask(taskId);
-  if (!row) throw new AuthorizationError("Tarefa nao encontrada.");
+  if (!row) throw new AuthorizationError("Tarefa não encontrada.");
   return requireAreaAccess(row.areaId, opts);
 }
 
 export async function requireKpiAccess(kpiId: string) {
   const areaId = await areaIdForKpi(kpiId);
-  if (!areaId) throw new AuthorizationError("KPI nao encontrado.");
+  if (!areaId) throw new AuthorizationError("KPI não encontrado.");
   return requireAreaAccess(areaId);
 }
 
@@ -116,7 +116,7 @@ export async function requireNoteDeleteAccess(noteId: string) {
   const session = await requireSession();
   const user = session.user as SessionUser;
   const [note] = await db.select().from(notes).where(eq(notes.id, noteId)).limit(1);
-  if (!note) throw new AuthorizationError("Nota nao encontrada.");
+  if (!note) throw new AuthorizationError("Nota não encontrada.");
   if (user.role === "admin" || note.userId === user.id) return session;
 
   const areaId =
@@ -138,7 +138,7 @@ export async function requireRuleAccess(ruleId: string) {
     .from(automationRules)
     .where(eq(automationRules.id, ruleId))
     .limit(1);
-  if (!rule) throw new AuthorizationError("Regra nao encontrada.");
+  if (!rule) throw new AuthorizationError("Regra não encontrada.");
 
   const areaId = rule.areaId ?? (rule.projectId ? await areaIdForProject(rule.projectId) : null);
   if (areaId && canManageArea(user, areaId)) return session;

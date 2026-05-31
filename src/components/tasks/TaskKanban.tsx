@@ -29,9 +29,9 @@ type Task = {
 };
 
 const COLUMNS = [
-  { key: "nao_iniciada", label: "Nao Iniciada", color: "border-gray-300" },
+  { key: "nao_iniciada", label: "Não Iniciada", color: "border-gray-300" },
   { key: "em_andamento", label: "Em Andamento", color: "border-blue-400" },
-  { key: "concluida", label: "Concluida", color: "border-green-400" },
+  { key: "concluida", label: "Concluída", color: "border-green-400" },
   { key: "bloqueada", label: "Bloqueada", color: "border-red-400" },
 ];
 
@@ -118,9 +118,9 @@ export default function TaskKanban({
               className="px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-cyan/40"
             >
               <option value="baixa">Baixa</option>
-              <option value="media">Media</option>
+              <option value="media">Média</option>
               <option value="alta">Alta</option>
-              <option value="critica">Critica</option>
+              <option value="critica">Crítica</option>
             </select>
             <button
               onClick={handleAddTask}

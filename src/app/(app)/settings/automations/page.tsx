@@ -9,7 +9,7 @@ export default async function AutomationsPage() {
 
   return (
     <div className="min-h-screen">
-      <Header title="Automacoes" />
+      <Header title="Automações" />
       <div className="p-4 md:p-6 max-w-3xl mx-auto">
         <AutomationsList initialRules={rules} />
       </div>

@@ -153,8 +153,8 @@ export default function KPIGrid({
             >
               <option value="currency">Moeda (R$)</option>
               <option value="percentage">Porcentagem (%)</option>
-              <option value="number">Numero</option>
-              <option value="ratio">Razao</option>
+              <option value="number">Número</option>
+              <option value="ratio">Razão</option>
             </select>
             <input
               type="number"

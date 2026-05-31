@@ -80,7 +80,7 @@ export default function TaskBoard({ tasks }: { tasks: Task[] }) {
         {[
           { label: "Total", value: stats.total, tone: "text-navy" },
           { label: "Em Andamento", value: stats.andamento, tone: "text-blue-600" },
-          { label: "Concluidas", value: stats.concluidas, tone: "text-green" },
+          { label: "Concluídas", value: stats.concluidas, tone: "text-green" },
           { label: "Atrasadas", value: stats.atrasadas, tone: "text-red-500" },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-100 p-4">

@@ -6,7 +6,7 @@ import { eq, count, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession, isAdmin, AuthorizationError, type SessionUser } from "@/lib/authorization";
 
-export async function getAreas() {
+export async function getÁreas() {
   const result = await db
     .select({
       id: areas.id,
@@ -105,10 +105,10 @@ export async function getAreaWithStats(slug: string) {
 }
 
 export async function getDashboardStats() {
-  const allAreas = await getAreas();
+  const allÁreas = await getÁreas();
   const stats = [];
 
-  for (const area of allAreas) {
+  for (const area of allÁreas) {
     const areaProjects = await db
       .select()
       .from(projects)

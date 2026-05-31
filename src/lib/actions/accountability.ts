@@ -128,10 +128,10 @@ export async function getAccountabilityStats(): Promise<PersonStats[]> {
 }
 
 export async function getProjectRollups() {
-  const allAreas = await db.select().from(areas);
+  const allÁreas = await db.select().from(areas);
   const rollups = [];
 
-  for (const area of allAreas) {
+  for (const area of allÁreas) {
     const areaProjects = await db
       .select()
       .from(projects)

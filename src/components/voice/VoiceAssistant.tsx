@@ -119,7 +119,7 @@ export default function VoiceAssistant() {
             setState((s) => ({
               ...s,
               status: "error",
-              message: `Nao entendi: "${cmd.raw}"`,
+              message: `Não entendi: "${cmd.raw}"`,
             }));
             break;
         }
@@ -144,7 +144,7 @@ export default function VoiceAssistant() {
     if (!recognition) {
       setState({
         status: "error",
-        message: "Navegador nao suporta reconhecimento de voz.",
+        message: "Navegador não suporta reconhecimento de voz.",
         transcript: "",
       });
       setShowOverlay(true);
@@ -185,7 +185,7 @@ export default function VoiceAssistant() {
       } else {
         setState({
           status: "error",
-          message: "Nao captei nada. Tente novamente.",
+          message: "Não captei nada. Tente novamente.",
           transcript: "",
         });
         setTimeout(() => {

@@ -18,7 +18,7 @@ export default async function ActivityPage() {
 
   return (
     <div className="min-h-screen">
-      <Header title="Historico de Atividade" />
+      <Header title="Histórico de Atividade" />
 
       <div className="p-4 md:p-6 max-w-3xl mx-auto">
         <div className="bg-white rounded-xl border border-gray-100">

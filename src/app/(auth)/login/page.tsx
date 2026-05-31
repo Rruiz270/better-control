@@ -55,7 +55,7 @@ function LoginForm() {
             Better<span className="text-cyan">Control</span>
           </h1>
           <p className="text-sm text-gray-400 mt-2 font-[family-name:var(--font-source-serif)]">
-            Sistema de Gestao do Grupo Better
+            Sistema de Gestão do Grupo Better
           </p>
         </div>
 

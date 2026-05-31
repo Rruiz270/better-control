@@ -1,8 +1,8 @@
 export const PROJECT_STATUS_LABELS: Record<string, string> = {
   planejamento: "Planejamento",
-  em_execucao: "Em Execucao",
+  em_execucao: "Em Execução",
   pausado: "Pausado",
-  concluido: "Concluido",
+  concluido: "Concluído",
   descontinuado: "Descontinuado",
 };
 
@@ -15,17 +15,17 @@ export const PROJECT_STATUS_COLORS: Record<string, string> = {
 };
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
-  nao_iniciada: "Nao Iniciada",
+  nao_iniciada: "Não Iniciada",
   em_andamento: "Em Andamento",
-  concluida: "Concluida",
+  concluida: "Concluída",
   bloqueada: "Bloqueada",
   cancelada: "Cancelada",
 };
 
 export const TASK_PRIORITY_LABELS: Record<string, string> = {
-  critica: "Critica",
+  critica: "Crítica",
   alta: "Alta",
-  media: "Media",
+  media: "Média",
   baixa: "Baixa",
 };
 

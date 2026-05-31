@@ -16,7 +16,7 @@ export type SessionUser = {
 
 /** Thrown when an authenticated user lacks permission for an action. */
 export class AuthorizationError extends Error {
-  constructor(message = "Voce nao tem permissao para esta acao.") {
+  constructor(message = "Você não tem permissão para esta ação.") {
     super(message);
     this.name = "AuthorizationError";
   }

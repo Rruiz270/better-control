@@ -14,7 +14,7 @@ import {
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) {
-    return NextResponse.json({ ok: false, message: "Nao autorizado" }, { status: 401 });
+    return NextResponse.json({ ok: false, message: "Não autorizado" }, { status: 401 });
   }
 
   const { command } = await req.json();
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
         if (!projectId) {
           return NextResponse.json({
             ok: false,
-            message: "Nenhum projeto acessivel encontrado.",
+            message: "Nenhum projeto acessível encontrado.",
           });
         }
 
@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         if (!areaId) {
           return NextResponse.json({
             ok: false,
-            message: "Nenhuma area acessivel encontrada.",
+            message: "Nenhuma área acessível encontrada.",
           });
         }
 
@@ -167,7 +167,7 @@ export async function POST(req: Request) {
         if (!task) {
           return NextResponse.json({
             ok: false,
-            message: `Tarefa "${command.title}" nao encontrada (ou sem permissao).`,
+            message: `Tarefa "${command.title}" não encontrada (ou sem permissão).`,
           });
         }
 
@@ -210,7 +210,7 @@ export async function POST(req: Request) {
         if (!entityId) entityId = await defaultProjectId();
 
         if (!entityId) {
-          return NextResponse.json({ ok: false, message: "Projeto acessivel nao encontrado." });
+          return NextResponse.json({ ok: false, message: "Projeto acessível não encontrado." });
         }
 
         await requireProjectAccess(entityId, { contributor: true });
@@ -232,7 +232,7 @@ export async function POST(req: Request) {
       default:
         return NextResponse.json({
           ok: false,
-          message: "Comando nao reconhecido.",
+          message: "Comando não reconhecido.",
         });
     }
   } catch (error) {

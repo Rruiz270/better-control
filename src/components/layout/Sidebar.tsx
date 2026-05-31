@@ -22,13 +22,13 @@ import { signOut } from "next-auth/react";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/areas", label: "Areas", icon: FolderKanban },
+  { href: "/areas", label: "Áreas", icon: FolderKanban },
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
-  { href: "/reports", label: "Relatorios", icon: BarChart3 },
+  { href: "/reports", label: "Relatórios", icon: BarChart3 },
   { href: "/team", label: "Equipe", icon: Users },
-  { href: "/settings/automations", label: "Automacoes", icon: Zap },
+  { href: "/settings/automations", label: "Automações", icon: Zap },
   { href: "/activity", label: "Atividade", icon: Activity },
-  { href: "/admin/users", label: "Usuarios", icon: UserCog, adminOnly: true },
+  { href: "/admin/users", label: "Usuários", icon: UserCog, adminOnly: true },
   { href: "/admin/logs", label: "Logs", icon: ScrollText, adminOnly: true },
   { href: "/settings", label: "Config", icon: Settings },
 ];

@@ -116,7 +116,7 @@ export async function evaluateRules(
           action: "sent",
           details: {
             ruleName: rule.name,
-            message: actionConfig?.message || `Automacao: ${rule.name}`,
+            message: actionConfig?.message || `Automação: ${rule.name}`,
           },
         });
         break;
@@ -130,7 +130,7 @@ export async function evaluateRules(
           details: {
             ruleName: rule.name,
             phone: actionConfig?.phone,
-            message: actionConfig?.message || `Automacao: ${rule.name}`,
+            message: actionConfig?.message || `Automação: ${rule.name}`,
           },
         });
         break;

@@ -43,7 +43,7 @@ export default async function ReportsPage() {
 
   return (
     <div className="min-h-screen">
-      <Header title="Relatorios & Accountability" />
+      <Header title="Relatórios & Accountability" />
 
       <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
         {/* Global stats */}
@@ -67,7 +67,7 @@ export default async function ReportsPage() {
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <div className="flex items-center gap-1.5 mb-1">
               <CheckCircle size={14} className="text-green-500" />
-              <span className="text-[10px] font-bold text-gray-400 uppercase">Concluidas</span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase">Concluídas</span>
             </div>
             <p className="text-xl font-bold text-green-600">{completedTasks}</p>
           </div>
@@ -165,7 +165,7 @@ export default async function ReportsPage() {
             <div className="hidden md:grid grid-cols-8 gap-2 px-4 py-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase">
               <span className="col-span-2">Pessoa</span>
               <span className="text-center">Atribuidas</span>
-              <span className="text-center">Concluidas</span>
+              <span className="text-center">Concluídas</span>
               <span className="text-center">No Prazo</span>
               <span className="text-center">Atrasadas</span>
               <span className="text-center">Compliance</span>
