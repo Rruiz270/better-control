@@ -26,7 +26,7 @@ async function main() {
     await db
       .insert(schema.users)
       .values([
-        { name: "Carlos", email: "carlos@betteredu.com.br", passwordHash: pwHash, role: "admin" },
+        { name: "Carlos", email: "carlos.m@betteredu.com.br", passwordHash: pwHash, role: "admin" },
         { name: "Raphael Ruiz", email: "raphael.ruiz@betteredu.com.br", passwordHash: pwHash, role: "admin" },
         { name: "Helen Mendes", email: "helen@betteredu.com.br", passwordHash: pwHash, role: "head" },
         { name: "Bruno", email: "bruno@betteredu.com.br", passwordHash: pwHash, role: "head" },
