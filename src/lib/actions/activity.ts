@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { activityLog, users } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { requireSession, isAdmin, AuthorizationError, type SessionUser } from "@/lib/authorization";
 
 const SELECT = {
@@ -19,16 +19,20 @@ const SELECT = {
 export async function getRecentActivity(limit = 20) {
   const session = await requireSession();
   const user = session.user as SessionUser;
-  const base = db
+  // Escopo: head/member veem só atividade de quem é da própria área; admin vê tudo.
+  // Membro sem área não vê nada (evita where com areaId null).
+  const where =
+    user.role === "admin"
+      ? undefined
+      : user.areaId
+        ? eq(users.areaId, user.areaId)
+        : sql`false`;
+
+  return db
     .select(SELECT)
     .from(activityLog)
-    .innerJoin(users, eq(activityLog.userId, users.id));
-  // Escopo: head/member veem só atividade de quem é da própria área; admin vê tudo.
-  if (user.role === "admin") {
-    return base.orderBy(desc(activityLog.createdAt)).limit(limit);
-  }
-  return base
-    .where(eq(users.areaId, user.areaId))
+    .innerJoin(users, eq(activityLog.userId, users.id))
+    .where(where)
     .orderBy(desc(activityLog.createdAt))
     .limit(limit);
 }
