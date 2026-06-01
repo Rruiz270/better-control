@@ -12,10 +12,6 @@ import type { NextAuthConfig } from "next-auth";
  */
 export const authConfig = {
   trustHost: true,
-  // App servido sob /better-control (basePath). As rotas internas do Auth.js
-  // (/api/auth/*) e os redirects precisam carregar esse prefixo, senão o
-  // signIn cai em /api/auth/* na raiz (404 no domínio do Instituto).
-  basePath: "/better-control/api/auth",
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   pages: { signIn: "/login" },
   providers: [],
