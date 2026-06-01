@@ -12,21 +12,30 @@ export default async function LoginPage({
   searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
   const { callbackUrl, error } = await searchParams;
+  // Só aceita caminho relativo interno (evita open-redirect e host errado).
+  const safeNext =
+    callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+      ? callbackUrl
+      : "/dashboard";
 
   async function authenticate(formData: FormData) {
     "use server";
     try {
+      // redirect:false → autentica e seta o cookie sem o redirect interno do
+      // NextAuth (que perde o basePath sob o rewrite). Redirecionamos à mão com
+      // next/redirect, que respeita o basePath /better-control.
       await signIn("credentials", {
         email: formData.get("email"),
         password: formData.get("password"),
-        redirectTo: callbackUrl || "/dashboard",
+        redirect: false,
       });
     } catch (err) {
       if (err instanceof AuthError) {
         redirect(`/login?error=CredentialsSignin`);
       }
-      throw err; // redirects do Next são lançados como erro — re-propaga
+      throw err;
     }
+    redirect(safeNext);
   }
 
   return (
