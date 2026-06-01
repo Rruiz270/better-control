@@ -1,12 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 
 /**
- * Paths reachable without a session. Everything else requires login.
- * Auth.js own routes (/api/auth/*) are always allowed by NextAuth.
- */
-const PUBLIC_PATHS = ["/login"];
-
-/**
  * Edge-safe slice of the auth config: NO database and NO bcrypt imports, so it
  * can run in the Middleware (edge) runtime. The credentials provider — which
  * needs Node APIs — is added only in auth.ts (Node runtime).
@@ -22,12 +16,14 @@ export const authConfig = {
   pages: { signIn: "/login" },
   providers: [],
   callbacks: {
-    authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user;
-      const isPublic = PUBLIC_PATHS.some((p) => nextUrl.pathname.startsWith(p));
-      if (isPublic) return true;
-      // Returning false makes NextAuth redirect to the signIn page.
-      return isLoggedIn;
+    // IMPORTANTE: não redirecionamos no edge. Quando o app roda sob um rewrite
+    // cross-project (institutoi10.com.br/better-control), o redirect do
+    // middleware perde o basePath e usa o host interno (.vercel.app) → 404/loop.
+    // O gate de sessão é feito no layout (app)/layout.tsx via redirect("/login")
+    // (caminho relativo, preserva basePath e host) + requireSession nas actions.
+    // Mantemos o callback só para popular req.auth; sempre autoriza a passagem.
+    authorized() {
+      return true;
     },
     jwt({ token, user }) {
       if (user) {
