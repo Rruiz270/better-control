@@ -1,49 +1,31 @@
-"use client";
+import { redirect } from "next/navigation";
+import { AuthError } from "next-auth";
+import { signIn } from "@/lib/auth";
 
-import { Suspense, useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+// Login via SERVER ACTION (signIn do servidor) — respeita o basePath do Next
+// (/better-control) nativamente e funciona sob o rewrite cross-project do
+// institutoi10.com.br. O signIn client (next-auth/react) montava URLs na raiz
+// do domínio (404) sob o subpath.
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
+}) {
+  const { callbackUrl, error } = await searchParams;
 
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
-  );
-}
-
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
+  async function authenticate(formData: FormData) {
+    "use server";
     try {
-      const formData = new FormData(e.currentTarget);
-      const result = await signIn("credentials", {
+      await signIn("credentials", {
         email: formData.get("email"),
         password: formData.get("password"),
-        redirect: false,
+        redirectTo: callbackUrl || "/dashboard",
       });
-
-      if (result?.error) {
-        setError("Email ou senha incorretos");
-        setLoading(false);
-      } else if (result?.ok) {
-        window.location.href = callbackUrl;
-      } else {
-        setError("Erro ao fazer login. Tente novamente.");
-        setLoading(false);
-      }
     } catch (err) {
-      setError("Erro de conexao. Tente novamente.");
-      setLoading(false);
+      if (err instanceof AuthError) {
+        redirect(`/login?error=CredentialsSignin`);
+      }
+      throw err; // redirects do Next são lançados como erro — re-propaga
     }
   }
 
@@ -59,15 +41,9 @@ function LoginForm() {
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="glass-light rounded-2xl p-6 space-y-4"
-        >
+        <form action={authenticate} className="glass-light rounded-2xl p-6 space-y-4">
           <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
               Email
             </label>
             <input
@@ -82,10 +58,7 @@ function LoginForm() {
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               Senha
             </label>
             <input
@@ -100,15 +73,14 @@ function LoginForm() {
           </div>
 
           {error && (
-            <p className="text-red-500 text-sm text-center">{error}</p>
+            <p className="text-red-500 text-sm text-center">Email ou senha incorretos</p>
           )}
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-lg gradient-main text-white font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="w-full py-3 rounded-lg gradient-main text-white font-semibold text-sm transition-opacity hover:opacity-90"
           >
-            {loading ? "Entrando..." : "Entrar"}
+            Entrar
           </button>
         </form>
       </div>
