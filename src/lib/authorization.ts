@@ -6,6 +6,7 @@ import {
   AuthorizationError,
   canContributeToArea,
   canManageArea,
+  canViewArea,
   type SessionUser,
 } from "./policy";
 
@@ -67,6 +68,23 @@ async function areaIdForKpi(kpiId: string): Promise<string | null> {
 }
 
 // --- Guards (throw AuthorizationError when denied) ---------------------------
+
+/** Leitura: precisa poder VER a área (admin, ou head/member da própria área). */
+export async function requireProjectView(projectId: string) {
+  const session = await requireSession();
+  const areaId = await areaIdForProject(projectId);
+  if (!areaId) throw new AuthorizationError("Projeto não encontrado.");
+  if (!canViewArea(session.user as SessionUser, areaId)) throw new AuthorizationError();
+  return session;
+}
+
+export async function requireTaskView(taskId: string) {
+  const session = await requireSession();
+  const row = await areaIdForTask(taskId);
+  if (!row) throw new AuthorizationError("Tarefa não encontrada.");
+  if (!canViewArea(session.user as SessionUser, row.areaId)) throw new AuthorizationError();
+  return session;
+}
 
 /**
  * @param contributor when true, members of the area also pass (task/note work);
