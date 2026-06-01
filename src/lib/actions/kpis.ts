@@ -4,9 +4,10 @@ import { db } from "@/db";
 import { kpis, kpiHistory } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireProjectAccess, requireKpiAccess } from "@/lib/authorization";
+import { requireProjectView, requireProjectAccess, requireKpiAccess } from "@/lib/authorization";
 
 export async function getKpisByProject(projectId: string) {
+  await requireProjectView(projectId);
   return db.select().from(kpis).where(eq(kpis.projectId, projectId));
 }
 

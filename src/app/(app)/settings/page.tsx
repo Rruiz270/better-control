@@ -4,13 +4,13 @@ import { auth } from "@/lib/auth";
 import Header from "@/components/layout/Header";
 import SignOutButton from "@/components/shared/SignOutButton";
 import AreaConfigPanel from "@/components/settings/AreaConfigPanel";
-import { getÁreas } from "@/lib/actions/areas";
+import { getAreas } from "@/lib/actions/areas";
 
 export default async function SettingsPage() {
   const session = await auth();
   const user = session?.user;
   const isAdmin = (user as Record<string, unknown>)?.role === "admin";
-  const areas = isAdmin ? await getÁreas() : [];
+  const areas = isAdmin ? await getAreas() : [];
 
   return (
     <div className="min-h-screen">

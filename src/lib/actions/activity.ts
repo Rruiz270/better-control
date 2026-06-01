@@ -17,10 +17,18 @@ const SELECT = {
 };
 
 export async function getRecentActivity(limit = 20) {
-  return db
+  const session = await requireSession();
+  const user = session.user as SessionUser;
+  const base = db
     .select(SELECT)
     .from(activityLog)
-    .innerJoin(users, eq(activityLog.userId, users.id))
+    .innerJoin(users, eq(activityLog.userId, users.id));
+  // Escopo: head/member veem só atividade de quem é da própria área; admin vê tudo.
+  if (user.role === "admin") {
+    return base.orderBy(desc(activityLog.createdAt)).limit(limit);
+  }
+  return base
+    .where(eq(users.areaId, user.areaId))
     .orderBy(desc(activityLog.createdAt))
     .limit(limit);
 }

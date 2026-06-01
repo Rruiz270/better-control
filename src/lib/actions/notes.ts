@@ -5,6 +5,8 @@ import { notes, users } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
+  requireProjectView,
+  requireTaskView,
   requireProjectAccess,
   requireTaskAccess,
   requireNoteDeleteAccess,
@@ -14,6 +16,8 @@ export async function getNotesByEntity(
   entityType: "project" | "task",
   entityId: string
 ) {
+  if (entityType === "project") await requireProjectView(entityId);
+  else await requireTaskView(entityId);
   return db
     .select({
       id: notes.id,

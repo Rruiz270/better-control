@@ -6,7 +6,7 @@ import { eq, count, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession, isAdmin, AuthorizationError, type SessionUser } from "@/lib/authorization";
 
-export async function getÁreas() {
+export async function getAreas() {
   const result = await db
     .select({
       id: areas.id,
@@ -105,47 +105,49 @@ export async function getAreaWithStats(slug: string) {
 }
 
 export async function getDashboardStats() {
-  const allÁreas = await getÁreas();
-  const stats = [];
+  const session = await requireSession();
+  const user = session.user as SessionUser;
+  const allAreas = await getAreas();
+  // Escopo: head/member veem só a própria área; admin vê todas.
+  const visibleAreas =
+    user.role === "admin" ? allAreas : allAreas.filter((a) => a.id === user.areaId);
 
-  for (const area of allÁreas) {
-    const areaProjects = await db
-      .select()
-      .from(projects)
-      .where(eq(projects.areaId, area.id));
+  // Duas queries agregadas (GROUP BY) em vez de N+1 por projeto.
+  const projAgg = await db
+    .select({
+      areaId: projects.areaId,
+      total: count(),
+      active: count(sql`CASE WHEN ${projects.status} = 'em_execucao' THEN 1 END`),
+    })
+    .from(projects)
+    .groupBy(projects.areaId);
 
-    let totalTasks = 0;
-    let completedTasks = 0;
-    let overdueTasks = 0;
+  const taskAgg = await db
+    .select({
+      areaId: projects.areaId,
+      total: count(),
+      completed: count(sql`CASE WHEN ${tasks.status} = 'concluida' THEN 1 END`),
+      overdue: count(
+        sql`CASE WHEN ${tasks.dueDate} < CURRENT_DATE AND ${tasks.status} NOT IN ('concluida', 'cancelada') THEN 1 END`
+      ),
+    })
+    .from(tasks)
+    .innerJoin(projects, eq(tasks.projectId, projects.id))
+    .groupBy(projects.areaId);
 
-    for (const project of areaProjects) {
-      const [taskStats] = await db
-        .select({
-          total: count(),
-          completed: count(
-            sql`CASE WHEN ${tasks.status} = 'concluida' THEN 1 END`
-          ),
-          overdue: count(
-            sql`CASE WHEN ${tasks.dueDate} < CURRENT_DATE AND ${tasks.status} NOT IN ('concluida', 'cancelada') THEN 1 END`
-          ),
-        })
-        .from(tasks)
-        .where(eq(tasks.projectId, project.id));
-      totalTasks += Number(taskStats.total);
-      completedTasks += Number(taskStats.completed);
-      overdueTasks += Number(taskStats.overdue);
-    }
+  const projById = new Map(projAgg.map((p) => [p.areaId, p]));
+  const taskById = new Map(taskAgg.map((t) => [t.areaId, t]));
 
-    const activeProjects = areaProjects.filter(
-      (p) => p.status === "em_execucao"
-    ).length;
-
-    stats.push({
+  return visibleAreas.map((area) => {
+    const p = projById.get(area.id);
+    const t = taskById.get(area.id);
+    const overdueTasks = Number(t?.overdue ?? 0);
+    return {
       ...area,
-      projectCount: areaProjects.length,
-      activeProjects,
-      totalTasks,
-      completedTasks,
+      projectCount: Number(p?.total ?? 0),
+      activeProjects: Number(p?.active ?? 0),
+      totalTasks: Number(t?.total ?? 0),
+      completedTasks: Number(t?.completed ?? 0),
       overdueTasks,
       semaphore:
         overdueTasks > 2
@@ -153,8 +155,6 @@ export async function getDashboardStats() {
           : overdueTasks > 0
             ? "yellow"
             : ("green" as "red" | "yellow" | "green"),
-    });
-  }
-
-  return stats;
+    };
+  });
 }

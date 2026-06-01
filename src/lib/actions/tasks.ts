@@ -7,6 +7,7 @@ import { evaluateRules } from "./automations";
 import { revalidatePath } from "next/cache";
 import {
   requireSession,
+  requireProjectView,
   requireProjectAccess,
   requireTaskAccess,
   type SessionUser,
@@ -16,6 +17,7 @@ type Assignee = { userId: string; name: string; email: string };
 type TaskWithAssignees = typeof tasks.$inferSelect & { assignees: Assignee[] };
 
 export async function getTasksByProject(projectId: string) {
+  await requireProjectView(projectId);
   // Single query (task LEFT JOIN assignees LEFT JOIN users) grouped in memory,
   // instead of one round-trip per task. neon-http bills every query as its own
   // HTTP request, so the previous N+1 was literally N+1 network calls.
