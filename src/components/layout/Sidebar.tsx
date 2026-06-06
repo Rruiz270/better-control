@@ -14,6 +14,7 @@ import {
   Zap,
   PieChart,
   Receipt,
+  TrendingUp,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -38,7 +39,9 @@ const GESTAO_NAV = [
 ];
 
 const FINANCEIRO_NAV = [
-  { href: "/financeiro", label: "Centro de Custo", icon: PieChart },
+  { href: "/financeiro", label: "Visão Geral", icon: BarChart3 },
+  { href: "/financeiro/receitas", label: "Receitas", icon: TrendingUp },
+  { href: "/financeiro/centro-de-custo", label: "Centro de Custo", icon: PieChart },
   { href: "/despesas", label: "Despesas & Pessoas", icon: Receipt },
 ];
 
@@ -108,7 +111,8 @@ export default function Sidebar({
       <nav className="flex-1 py-4 space-y-1 px-2">
         {navItems.filter((item) => !("adminOnly" in item && item.adminOnly) || userRole === "admin").map((item) => {
           const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
+            pathname === item.href ||
+            (item.href !== "/financeiro" && pathname.startsWith(item.href + "/"));
           return (
             <Link
               key={item.href}

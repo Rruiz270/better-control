@@ -1,86 +1,88 @@
 export const dynamic = "force-dynamic";
 
 import Header from "@/components/layout/Header";
-import { getCostCenterDashboard } from "@/lib/actions/expenses";
-import { PieChart, Wallet, AlertTriangle } from "lucide-react";
+import { getFinanceiroOverview } from "@/lib/actions/financeiro";
+import { TrendingUp, TrendingDown, Wallet } from "lucide-react";
 
 const brl = (n: number) => `R$ ${Math.round(n).toLocaleString("pt-BR")}`;
+const MN = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-export default async function FinanceiroPage() {
+export default async function FinanceiroOverviewPage() {
   const year = new Date().getFullYear();
 
-  let data;
+  let d;
   try {
-    data = await getCostCenterDashboard(year);
+    d = await getFinanceiroOverview(year);
   } catch {
     return (
       <div className="min-h-screen">
-        <Header title="Financeiro · Centro de Custo" />
-        <p className="p-8 text-sm text-gray-400 text-center">
-          Você não tem acesso ao Modo Financeiro.
-        </p>
+        <Header title="Financeiro · Visão Geral" />
+        <p className="p-8 text-sm text-gray-400 text-center">Você não tem acesso ao Modo Financeiro.</p>
       </div>
     );
   }
 
-  const max = Math.max(1, ...data.centers.map((c) => c.total));
+  const resultado = d.totalReceita - d.totalDespesa;
+  const max = Math.max(1, ...d.receita, ...d.despesa);
+  const monthsWith = d.receita.map((_, i) => i).filter((i) => d.receita[i] || d.despesa[i]);
 
   return (
     <div className="min-h-screen">
-      <Header title="Financeiro · Centro de Custo" />
+      <Header title="Financeiro · Visão Geral" />
       <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
         <p className="text-xs text-gray-400 -mt-1">
-          {year} · despesas consolidadas (OMIE/BMA, deduplicado) agrupadas por centro de custo.
-          Alimenta a performance e o rateio. Categorize na aba <strong>Despesas</strong>.
+          {year} · receita (Vindi/OMIE) vs despesa (consolidada OMIE+BMA, deduplicada). Fonte: better-financeiro (cron 2x/dia).
         </p>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <div className="flex items-center gap-1.5 mb-1">
-              <Wallet size={14} className="text-navy" />
-              <span className="text-[10px] font-bold text-gray-400 uppercase">Despesa total</span>
+              <TrendingUp size={14} className="text-green-500" />
+              <span className="text-[10px] font-bold text-gray-400 uppercase">Receita {year}</span>
             </div>
-            <p className="text-xl font-bold text-navy">{brl(data.total)}</p>
+            <p className="text-2xl font-bold text-green-600">{brl(d.totalReceita)}</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 p-4">
             <div className="flex items-center gap-1.5 mb-1">
-              <PieChart size={14} className="text-cyan" />
-              <span className="text-[10px] font-bold text-gray-400 uppercase">Centros de custo</span>
+              <TrendingDown size={14} className="text-red-500" />
+              <span className="text-[10px] font-bold text-gray-400 uppercase">Despesa {year}</span>
             </div>
-            <p className="text-xl font-bold text-navy">{data.centers.filter((c) => c.id).length}</p>
+            <p className="text-2xl font-bold text-red-500">{brl(d.totalDespesa)}</p>
           </div>
-          <div className="bg-amber-50 rounded-xl border border-amber-100 p-4">
+          <div className={`rounded-xl border p-4 ${resultado >= 0 ? "bg-green-50 border-green-100" : "bg-red-50 border-red-100"}`}>
             <div className="flex items-center gap-1.5 mb-1">
-              <AlertTriangle size={14} className="text-amber-500" />
-              <span className="text-[10px] font-bold text-amber-500 uppercase">Sem centro</span>
+              <Wallet size={14} className={resultado >= 0 ? "text-green-600" : "text-red-600"} />
+              <span className="text-[10px] font-bold text-gray-400 uppercase">Resultado {year}</span>
             </div>
-            <p className="text-xl font-bold text-amber-600">{brl(data.unassigned)}</p>
+            <p className={`text-2xl font-bold ${resultado >= 0 ? "text-green-700" : "text-red-600"}`}>{brl(resultado)}</p>
           </div>
         </div>
 
-        {/* Barras por centro */}
         <section>
-          <h2 className="text-lg font-bold text-navy mb-3">Despesa por centro de custo</h2>
-          <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
-            {data.centers.map((c) => (
-              <div key={c.id ?? "none"} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-navy">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-                    {c.name}
-                    <span className="text-[10px] text-gray-400">({c.count})</span>
+          <h2 className="text-lg font-bold text-navy mb-3">Mês a mês</h2>
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="hidden md:grid grid-cols-5 gap-2 px-4 py-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase">
+              <span>Mês</span>
+              <span className="text-right">Receita</span>
+              <span className="text-right">Despesa</span>
+              <span className="text-right">Resultado</span>
+              <span>Comparativo</span>
+            </div>
+            {monthsWith.map((i) => {
+              const res = d.receita[i] - d.despesa[i];
+              return (
+                <div key={i} className="grid grid-cols-2 md:grid-cols-5 gap-2 px-4 py-2.5 items-center border-b border-gray-50 last:border-0">
+                  <span className="text-sm font-medium text-navy">{MN[i]}</span>
+                  <span className="text-right text-sm text-green-600 tnum">{brl(d.receita[i])}</span>
+                  <span className="text-right text-sm text-red-500 tnum">{brl(d.despesa[i])}</span>
+                  <span className={`text-right text-sm font-bold tnum ${res >= 0 ? "text-green-700" : "text-red-600"}`}>{brl(res)}</span>
+                  <span className="hidden md:flex items-center gap-1 h-4">
+                    <span className="h-2 rounded-full bg-green-400" style={{ width: `${(d.receita[i] / max) * 50}%` }} />
+                    <span className="h-2 rounded-full bg-red-300" style={{ width: `${(d.despesa[i] / max) * 50}%` }} />
                   </span>
-                  <span className="font-bold text-navy tnum">{brl(c.total)}</span>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${(c.total / max) * 100}%`, backgroundColor: c.color }} />
-                </div>
-              </div>
-            ))}
-            {data.centers.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-6">Sem despesas neste ano.</p>
-            )}
+              );
+            })}
           </div>
         </section>
       </div>
