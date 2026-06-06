@@ -406,3 +406,51 @@ export const timeEntries = pgTable("time_entries", {
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// --- Centro de custo + ledger de despesas (espelho OMIE/BMA) ------------------
+// `expenses` = espelho consolidado das despesas/pessoas (fonte: OMIE Better +
+// BMA folha, deduplicado). Sincronizado por `scripts/sync-expenses.ts` (hoje do
+// snapshot do better-financeiro; depois apontará pro banco `financeiro` ao vivo).
+// `costCenters` = camada de categorização (liga a uma área p/ alimentar o rateio).
+// `supplierCostCenter` = regra persistente nome→centro: sobrevive ao re-sync, então
+// novos lançamentos do mesmo fornecedor já entram categorizados.
+
+export const expenseKindEnum = pgEnum("expense_kind", ["fornecedor", "pessoa"]);
+
+export const costCenters = pgTable("cost_centers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  areaId: uuid("area_id").references(() => areas.id),
+  color: text("color").notNull().default("#64748B"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    // chave sintética estável p/ upsert idempotente no sync.
+    externalKey: text("external_key").notNull(),
+    source: text("source").notNull(), // 'omie' | 'bma'
+    kind: expenseKindEnum("kind").notNull(),
+    name: text("name").notNull(), // fornecedor ou pessoa
+    category: text("category"), // categoria OMIE
+    bucket: text("bucket"), // "projeto" contábil do OMIE
+    year: integer("year").notNull(),
+    month: integer("month").notNull(),
+    value: numeric("value", { precision: 14, scale: 2 }).notNull().default("0"),
+    costCenterId: uuid("cost_center_id").references(() => costCenters.id),
+    syncedAt: timestamp("synced_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("expenses_external_key_idx").on(table.externalKey)]
+);
+
+/** Regra fornecedor/pessoa → centro de custo, reaplicada a cada sync. */
+export const supplierCostCenter = pgTable("supplier_cost_center", {
+  name: text("name").primaryKey(),
+  costCenterId: uuid("cost_center_id")
+    .references(() => costCenters.id, { onDelete: "cascade" })
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
