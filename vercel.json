@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/better-control/api/cron/sync-expenses",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
