@@ -62,6 +62,8 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").notNull().default("member"),
   areaId: uuid("area_id"),
+  // Hierarquia: a quem a pessoa reporta. Head preenche rateio de quem está abaixo.
+  managerId: uuid("manager_id"),
   phone: text("phone"),
   avatarUrl: text("avatar_url"),
   // Acesso ao Modo Financeiro (dados sensíveis) — por permissão, não 2ª senha.

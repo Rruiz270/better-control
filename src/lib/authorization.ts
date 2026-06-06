@@ -1,6 +1,6 @@
 import { auth } from "./auth";
 import { db } from "@/db";
-import { projects, tasks, kpis, automationRules, notes, users } from "@/db/schema";
+import { projects, tasks, kpis, automationRules, notes, users, areas } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   AuthorizationError,
@@ -42,6 +42,45 @@ export async function hasFinanceiroAccess(userId: string): Promise<boolean> {
     .where(eq(users.id, userId))
     .limit(1);
   return !!u?.fin;
+}
+
+/**
+ * Conjunto de pessoas cujo rateio o usuário pode preencher:
+ *  - admin → todos (retorna null = "todos");
+ *  - head de área → todos da(s) área(s) que lidera;
+ *  - + a própria subárvore de reportes (managerId), recursivo (sub-heads);
+ *  - + ele mesmo.
+ */
+export async function editablePeopleFor(
+  user: SessionUser
+): Promise<Set<string> | null> {
+  if (user.role === "admin") return null; // todos
+
+  const all = await db
+    .select({ id: users.id, areaId: users.areaId, managerId: users.managerId })
+    .from(users);
+  const set = new Set<string>([user.id]);
+
+  // áreas que o usuário lidera → todos dessas áreas
+  const headed = await db.select({ id: areas.id }).from(areas).where(eq(areas.headId, user.id));
+  const headedAreas = new Set(headed.map((a) => a.id));
+  for (const u of all) if (u.areaId && headedAreas.has(u.areaId)) set.add(u.id);
+
+  // subárvore de reportes (BFS sobre managerId)
+  const childrenOf = new Map<string, string[]>();
+  for (const u of all) if (u.managerId) {
+    const arr = childrenOf.get(u.managerId) ?? [];
+    arr.push(u.id);
+    childrenOf.set(u.managerId, arr);
+  }
+  const queue = [user.id];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    for (const child of childrenOf.get(cur) ?? []) {
+      if (!set.has(child)) { set.add(child); queue.push(child); }
+    }
+  }
+  return set;
 }
 
 export async function requireFinanceiroAccess() {

@@ -17,6 +17,7 @@ import {
   requireSession,
   requireProjectAccess,
   isAdmin,
+  editablePeopleFor,
   AuthorizationError,
   type SessionUser,
 } from "@/lib/authorization";
@@ -58,23 +59,27 @@ export type RateioContext = {
 export async function getRateioContext(): Promise<RateioContext> {
   const session = await requireSession();
   const user = session.user as SessionUser;
-  if (user.role === "member") throw new AuthorizationError();
-  const scoped = user.role !== "admin";
 
-  const projectRows = await db
-    .select({ id: projects.id, name: projects.name, areaId: projects.areaId })
-    .from(projects)
-    .where(scoped ? eq(projects.areaId, user.areaId ?? "__none__") : undefined);
-
-  const userRows = await db
+  // Pessoas que o usuário pode preencher (admin = todos; head = área; +subárvore).
+  const editable = await editablePeopleFor(user);
+  const allUsers = await db
     .select({ id: users.id, name: users.name, areaId: users.areaId, areaName: areas.name })
     .from(users)
-    .leftJoin(areas, eq(users.areaId, areas.id))
-    .where(scoped ? eq(users.areaId, user.areaId ?? "__none__") : undefined);
+    .leftJoin(areas, eq(users.areaId, areas.id));
+  const people = editable ? allUsers.filter((u) => editable.has(u.id)) : allUsers;
+
+  if (people.length === 0) throw new AuthorizationError("Sem pessoas para preencher.");
+
+  // Projetos das áreas dessas pessoas (admin = todos).
+  const areaIds = new Set(people.map((u) => u.areaId).filter(Boolean) as string[]);
+  const allProjects = await db
+    .select({ id: projects.id, name: projects.name, areaId: projects.areaId })
+    .from(projects);
+  const projectRows = editable ? allProjects.filter((p) => areaIds.has(p.areaId)) : allProjects;
 
   return {
     canManageCost: user.role === "admin",
-    users: userRows.map((u) => ({ id: u.id, name: u.name, areaId: u.areaId, areaName: u.areaName })),
+    users: people.map((u) => ({ id: u.id, name: u.name, areaId: u.areaId, areaName: u.areaName })),
     projects: projectRows,
   };
 }
@@ -155,13 +160,13 @@ export async function setAllocation(input: {
     throw new AuthorizationError("Percentual deve estar entre 0 e 100.");
   }
 
-  // Escopo do alvo: não-admin só aloca pessoas da MESMA área do projeto (senão
-  // um head poderia alocar custo/tempo de alguém de outra área no seu projeto).
-  if (!isAdmin(session.user as SessionUser)) {
-    const [proj] = await db.select({ areaId: projects.areaId }).from(projects).where(eq(projects.id, input.projectId)).limit(1);
-    const [target] = await db.select({ areaId: users.areaId }).from(users).where(eq(users.id, input.userId)).limit(1);
-    if (!target || target.areaId !== proj?.areaId) {
-      throw new AuthorizationError("Pessoa fora do escopo da área.");
+  // Escopo do alvo: não-admin só preenche quem está na sua árvore (área que
+  // lidera + subárvore de reportes). Modela "head preenche pelos de baixo".
+  const user = session.user as SessionUser;
+  if (!isAdmin(user)) {
+    const editable = await editablePeopleFor(user);
+    if (editable && !editable.has(input.userId)) {
+      throw new AuthorizationError("Você não pode preencher o rateio dessa pessoa.");
     }
   }
 
