@@ -155,6 +155,16 @@ export async function setAllocation(input: {
     throw new AuthorizationError("Percentual deve estar entre 0 e 100.");
   }
 
+  // Escopo do alvo: não-admin só aloca pessoas da MESMA área do projeto (senão
+  // um head poderia alocar custo/tempo de alguém de outra área no seu projeto).
+  if (!isAdmin(session.user as SessionUser)) {
+    const [proj] = await db.select({ areaId: projects.areaId }).from(projects).where(eq(projects.id, input.projectId)).limit(1);
+    const [target] = await db.select({ areaId: users.areaId }).from(users).where(eq(users.id, input.userId)).limit(1);
+    if (!target || target.areaId !== proj?.areaId) {
+      throw new AuthorizationError("Pessoa fora do escopo da área.");
+    }
+  }
+
   await db
     .insert(allocations)
     .values({

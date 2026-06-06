@@ -10,6 +10,8 @@ import {
   requireProjectView,
   requireProjectAccess,
   requireTaskAccess,
+  isAdmin,
+  AuthorizationError,
   type SessionUser,
 } from "@/lib/authorization";
 
@@ -240,6 +242,17 @@ export async function createTasksBulk(input: {
   priority?: "critica" | "alta" | "media" | "baixa";
 }) {
   const session = await requireProjectAccess(input.projectId, { contributor: true });
+
+  // Escopo do responsável: não-admin só pode atribuir a alguém da MESMA área do
+  // projeto (senão um head poderia jogar tarefa em pessoa de outra área).
+  if (input.assigneeId && !isAdmin(session.user as SessionUser)) {
+    const [proj] = await db.select({ areaId: projects.areaId }).from(projects).where(eq(projects.id, input.projectId)).limit(1);
+    const [assignee] = await db.select({ areaId: users.areaId }).from(users).where(eq(users.id, input.assigneeId)).limit(1);
+    if (!assignee || assignee.areaId !== proj?.areaId) {
+      throw new AuthorizationError("Responsável fora do escopo da área.");
+    }
+  }
+
   const titles = input.lines.map((l) => l.trim()).filter(Boolean);
   if (titles.length === 0) return { created: 0 };
 
