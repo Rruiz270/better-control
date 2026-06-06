@@ -35,14 +35,16 @@ export default function ExpenseLedger({
   const unassigned = ccTotal.get(null) ?? 0;
 
   const filtered = rows.filter(
-    (r) => (kind === "all" || r.kind === kind) && r.name.toLowerCase().includes(q.toLowerCase())
+    (r) =>
+      (kind === "all" || r.kind === kind) &&
+      (r.name.toLowerCase().includes(q.toLowerCase()) || (r.taxId ?? "").includes(q))
   );
 
-  function assign(name: string, costCenterId: string) {
+  function assign(entityKey: string, costCenterId: string) {
     const cc = costCenterId || null;
-    setRows((prev) => prev.map((r) => (r.name === name ? { ...r, costCenterId: cc } : r)));
+    setRows((prev) => prev.map((r) => (r.entityKey === entityKey ? { ...r, costCenterId: cc } : r)));
     startTransition(async () => {
-      try { await assignSupplierCostCenter(name, cc); } catch { /* revalidate trará o estado certo */ }
+      try { await assignSupplierCostCenter(entityKey, cc); } catch { /* revalidate trará o estado certo */ }
     });
   }
 
@@ -96,16 +98,17 @@ export default function ExpenseLedger({
           <span className="col-span-4">Centro de custo</span>
         </div>
         {filtered.map((r, i) => (
-          <div key={r.name} className={`grid grid-cols-2 md:grid-cols-12 gap-2 px-4 py-2.5 items-center ${i < filtered.length - 1 ? "border-b border-gray-50" : ""}`}>
+          <div key={r.entityKey} className={`grid grid-cols-2 md:grid-cols-12 gap-2 px-4 py-2.5 items-center ${i < filtered.length - 1 ? "border-b border-gray-50" : ""}`}>
             <div className="col-span-6 flex items-center gap-2 min-w-0">
               {r.kind === "pessoa" ? <Users size={14} className="text-cyan flex-shrink-0" /> : <Package size={14} className="text-gray-300 flex-shrink-0" />}
               <span className="text-sm text-navy truncate">{r.name}</span>
+              {r.taxId && <span className="text-[10px] text-gray-300 flex-shrink-0">{r.taxId}</span>}
             </div>
             <span className="col-span-2 text-right text-sm font-bold text-navy tnum">{brl(r.total)}</span>
             <div className="col-span-4">
               <select
                 value={r.costCenterId ?? ""}
-                onChange={(e) => assign(r.name, e.target.value)}
+                onChange={(e) => assign(r.entityKey, e.target.value)}
                 className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs text-navy focus:outline-none focus:ring-2 focus:ring-cyan/40"
                 style={r.costCenterId ? { borderColor: ccById.get(r.costCenterId)?.color } : {}}
               >

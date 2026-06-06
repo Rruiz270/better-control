@@ -434,7 +434,14 @@ export const expenses = pgTable(
     externalKey: text("external_key").notNull(),
     source: text("source").notNull(), // 'omie' | 'bma'
     kind: expenseKindEnum("kind").notNull(),
-    name: text("name").notNull(), // fornecedor ou pessoa
+    name: text("name").notNull(), // fornecedor ou pessoa (rótulo exibido)
+    // Identidade da entidade: CPF/CNPJ quando disponível. É a chave de
+    // consolidação — nomes variam ("Helen Mendes" vs "HELEN CRISTHI..."), o
+    // documento não. Vem completo com a conexão live do banco `financeiro`.
+    taxId: text("tax_id"),
+    // entityKey = taxId quando existe, senão nome normalizado. Categorização e
+    // agregação colam NESTA chave (não no nome cru).
+    entityKey: text("entity_key").notNull().default(""),
     category: text("category"), // categoria OMIE
     bucket: text("bucket"), // "projeto" contábil do OMIE
     year: integer("year").notNull(),

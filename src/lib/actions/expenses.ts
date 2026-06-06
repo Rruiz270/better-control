@@ -19,7 +19,9 @@ export async function getCostCenters() {
 }
 
 export type SupplierRow = {
-  name: string;
+  entityKey: string; // CPF/CNPJ quando há, senão nome — chave de consolidação
+  name: string; // rótulo exibido
+  taxId: string | null;
   kind: "fornecedor" | "pessoa";
   total: number;
   costCenterId: string | null;
@@ -34,16 +36,20 @@ export async function getExpenseLedger(year: number): Promise<{
   await assertAdmin();
   const rows = await db.select().from(expenses).where(eq(expenses.year, year));
 
+  // Consolida por entityKey (CPF/CNPJ ou nome) — junta variações de nome.
   const bySupplier = new Map<string, SupplierRow>();
   const byCC = new Map<string | null, number>();
   let total = 0;
   for (const r of rows) {
     const v = Number(r.value);
     total += v;
-    const cur = bySupplier.get(r.name) ?? { name: r.name, kind: r.kind, total: 0, costCenterId: r.costCenterId };
+    const ek = r.entityKey || r.name;
+    const cur = bySupplier.get(ek) ?? { entityKey: ek, name: r.name, taxId: r.taxId, kind: r.kind, total: 0, costCenterId: r.costCenterId };
     cur.total += v;
+    // mantém o nome mais completo como rótulo
+    if (r.name.length > cur.name.length) cur.name = r.name;
     if (r.costCenterId) cur.costCenterId = r.costCenterId;
-    bySupplier.set(r.name, cur);
+    bySupplier.set(ek, cur);
     byCC.set(r.costCenterId, (byCC.get(r.costCenterId) ?? 0) + v);
   }
 
@@ -55,18 +61,20 @@ export async function getExpenseLedger(year: number): Promise<{
 }
 
 /**
- * Categoriza um fornecedor/pessoa num centro de custo. Persiste a regra (sobrevive
- * ao re-sync) E aplica retroativamente a todos os lançamentos desse nome.
+ * Categoriza uma entidade (CPF/CNPJ ou nome) num centro de custo. A regra é
+ * keyed por `entityKey`, então sobrevive ao re-sync E pega todas as variações de
+ * nome do mesmo documento. Aplica retroativamente a todos os lançamentos.
+ * (supplierCostCenter.name guarda o entityKey.)
  */
-export async function assignSupplierCostCenter(name: string, costCenterId: string | null) {
+export async function assignSupplierCostCenter(entityKey: string, costCenterId: string | null) {
   await assertAdmin();
   if (costCenterId) {
     await db.insert(supplierCostCenter)
-      .values({ name, costCenterId })
+      .values({ name: entityKey, costCenterId })
       .onConflictDoUpdate({ target: supplierCostCenter.name, set: { costCenterId, updatedAt: new Date() } });
   } else {
-    await db.delete(supplierCostCenter).where(eq(supplierCostCenter.name, name));
+    await db.delete(supplierCostCenter).where(eq(supplierCostCenter.name, entityKey));
   }
-  await db.update(expenses).set({ costCenterId }).where(eq(expenses.name, name));
+  await db.update(expenses).set({ costCenterId }).where(eq(expenses.entityKey, entityKey));
   revalidatePath("/", "layout");
 }
