@@ -1,21 +1,25 @@
 export const dynamic = "force-dynamic";
 
 import Header from "@/components/layout/Header";
-import { getCostCenters, getExpenseLedger } from "@/lib/actions/expenses";
+import { getCostCenters, getVerticais, getExpenseLedger } from "@/lib/actions/expenses";
 import ExpenseLedger from "@/components/expenses/ExpenseLedger";
 
 export default async function DespesasPage() {
   const year = new Date().getFullYear();
 
-  let costCenters, ledger;
+  let costCenters, verticais, ledger;
   try {
-    [costCenters, ledger] = await Promise.all([getCostCenters(), getExpenseLedger(year)]);
+    [costCenters, verticais, ledger] = await Promise.all([
+      getCostCenters(),
+      getVerticais(),
+      getExpenseLedger(year),
+    ]);
   } catch {
     return (
       <div className="min-h-screen">
         <Header title="Despesas & Pessoas" />
         <p className="p-8 text-sm text-gray-400 text-center">
-          Apenas admin acessa as despesas.
+          Você não tem acesso ao Modo Financeiro.
         </p>
       </div>
     );
@@ -26,13 +30,14 @@ export default async function DespesasPage() {
       <Header title="Despesas & Pessoas" />
       <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
         <p className="text-xs text-gray-400 -mt-1">
-          Espelho da OMIE/BMA (deduplicado) · {year} · categorize cada um num centro de custo —
-          isso alimenta o rateio e a performance. Novos fornecedores entram já categorizados pela regra salva.
+          Espelho da OMIE/BMA (deduplicado) · {year} · classifique cada um em <strong>2 dimensões</strong>:
+          <strong> vertical</strong> (i10/Tech/Idiomas/EdTech) + <strong>categoria</strong> (natureza). Persiste por
+          CNPJ/CPF e alimenta o centro de custo, rateio e performance.
         </p>
         <ExpenseLedger
           suppliers={ledger.suppliers}
           costCenters={costCenters.map((c) => ({ id: c.id, name: c.name, color: c.color }))}
-          byCostCenter={ledger.byCostCenter}
+          verticais={verticais}
           total={ledger.total}
           year={year}
         />

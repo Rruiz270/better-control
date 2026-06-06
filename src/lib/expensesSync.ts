@@ -30,9 +30,9 @@ export async function runExpensesSync(year = 2026): Promise<{ count: number; tot
   const dir = await db.select().from(entityTax);
   const taxByName = new Map(dir.map((d) => [d.nameUpper, d.taxId]));
 
-  // 2) regras entityKey(CNPJ/nome)→centro
+  // 2) regras entityKey(CNPJ/nome)→{categoria, vertical}
   const rules = await db.select().from(supplierCostCenter);
-  const ruleMap = new Map(rules.map((r) => [r.name, r.costCenterId]));
+  const ruleMap = new Map(rules.map((r) => [r.name, { cc: r.costCenterId, area: r.areaId }]));
 
   // 3) pessoas (nomes PESSOA + cpf/cnpj)
   const pj = JSON.parse(await fetchText(PESSOAS_URL));
@@ -68,12 +68,15 @@ export async function runExpensesSync(year = 2026): Promise<{ count: number; tot
     agg.set(key, cur);
   }
 
-  // 5) upsert em lote
-  const values = [...agg.values()].filter((e) => e.value !== 0).map((e) => ({
-    externalKey: e.externalKey, source: e.source, kind: e.kind, name: e.name, taxId: e.taxId,
-    entityKey: e.entityKey, category: e.category, bucket: e.bucket, year: e.year, month: e.month,
-    value: e.value.toFixed(2), costCenterId: ruleMap.get(e.entityKey) ?? null, syncedAt: new Date(),
-  }));
+  // 5) upsert em lote (aplica categoria + vertical da regra)
+  const values = [...agg.values()].filter((e) => e.value !== 0).map((e) => {
+    const rule = ruleMap.get(e.entityKey);
+    return {
+      externalKey: e.externalKey, source: e.source, kind: e.kind, name: e.name, taxId: e.taxId,
+      entityKey: e.entityKey, category: e.category, bucket: e.bucket, year: e.year, month: e.month,
+      value: e.value.toFixed(2), costCenterId: rule?.cc ?? null, areaId: rule?.area ?? null, syncedAt: new Date(),
+    };
+  });
 
   for (const part of chunk(values, 300)) {
     await db.insert(expenses).values(part).onConflictDoUpdate({
@@ -81,7 +84,7 @@ export async function runExpensesSync(year = 2026): Promise<{ count: number; tot
       set: {
         kind: sql`excluded.kind`, name: sql`excluded.name`, taxId: sql`excluded.tax_id`,
         entityKey: sql`excluded.entity_key`, category: sql`excluded.category`, bucket: sql`excluded.bucket`,
-        value: sql`excluded.value`, costCenterId: sql`excluded.cost_center_id`, syncedAt: sql`excluded.synced_at`,
+        value: sql`excluded.value`, costCenterId: sql`excluded.cost_center_id`, areaId: sql`excluded.area_id`, syncedAt: sql`excluded.synced_at`,
       },
     });
   }

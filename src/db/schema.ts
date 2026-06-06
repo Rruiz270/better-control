@@ -452,6 +452,8 @@ export const expenses = pgTable(
     year: integer("year").notNull(),
     month: integer("month").notNull(),
     value: numeric("value", { precision: 14, scale: 2 }).notNull().default("0"),
+    // 2 dimensões: vertical (área/unidade) + categoria (natureza, col R do Excel).
+    areaId: uuid("area_id").references(() => areas.id),
     costCenterId: uuid("cost_center_id").references(() => costCenters.id),
     syncedAt: timestamp("synced_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -462,9 +464,8 @@ export const expenses = pgTable(
  * reaplicada a cada sync. */
 export const supplierCostCenter = pgTable("supplier_cost_center", {
   name: text("name").primaryKey(), // entityKey (CNPJ/CPF ou nome em maiúsculas)
-  costCenterId: uuid("cost_center_id")
-    .references(() => costCenters.id, { onDelete: "cascade" })
-    .notNull(),
+  costCenterId: uuid("cost_center_id").references(() => costCenters.id, { onDelete: "cascade" }),
+  areaId: uuid("area_id").references(() => areas.id), // vertical (2ª dimensão)
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
