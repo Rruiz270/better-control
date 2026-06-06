@@ -1,5 +1,35 @@
 import { describe, it, expect } from "vitest";
-import { parseVoiceCommand } from "./commandParser";
+import { parseVoiceCommand, parseDuration } from "./commandParser";
+
+describe("parseDuration", () => {
+  it("converte horas para minutos", () => {
+    expect(parseDuration("2 horas")).toBe(120);
+    expect(parseDuration("1,5 hora")).toBe(90);
+  });
+  it("entende minutos, 'meia hora' e formato 1h30", () => {
+    expect(parseDuration("90 minutos")).toBe(90);
+    expect(parseDuration("meia hora")).toBe(30);
+    expect(parseDuration("1h30")).toBe(90);
+  });
+  it("retorna null sem duração", () => {
+    expect(parseDuration("no projeto community")).toBeNull();
+  });
+});
+
+describe("parseVoiceCommand — log_time", () => {
+  it("lança tempo com projeto", () => {
+    const cmd = parseVoiceCommand("lancei 2 horas no projeto Portal do Aluno");
+    expect(cmd).toMatchObject({ type: "log_time", minutes: 120, project: "portal do aluno" });
+  });
+  it("entende 'registra 90 minutos no Radar 360'", () => {
+    const cmd = parseVoiceCommand("registra 90 minutos no Radar 360");
+    expect(cmd).toMatchObject({ type: "log_time", minutes: 90, project: "radar 360" });
+  });
+  it("entende 'gastei meia hora em Community'", () => {
+    const cmd = parseVoiceCommand("gastei meia hora em Community");
+    expect(cmd).toMatchObject({ type: "log_time", minutes: 30, project: "community" });
+  });
+});
 
 describe("parseVoiceCommand", () => {
   it("creates a task with a project", () => {

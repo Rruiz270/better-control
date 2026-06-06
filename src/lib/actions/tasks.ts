@@ -206,3 +206,71 @@ export async function getAllTasks() {
   if (user.role === "admin") return allTasks;
   return allTasks.filter((t) => t.areaId === user.areaId);
 }
+
+/** Projetos + pessoas que o usuário pode usar ao criar tarefas (escopo por área). */
+export async function getTaskTargets() {
+  const session = await requireSession();
+  const user = session.user as SessionUser;
+  const { projects, areas, users } = await import("@/db/schema");
+  const scoped = user.role !== "admin";
+
+  const projectRows = await db
+    .select({ id: projects.id, name: projects.name, areaId: projects.areaId, areaName: areas.name })
+    .from(projects)
+    .innerJoin(areas, eq(projects.areaId, areas.id))
+    .where(scoped ? eq(projects.areaId, user.areaId ?? "__none__") : undefined);
+
+  const userRows = await db
+    .select({ id: users.id, name: users.name, areaId: users.areaId })
+    .from(users)
+    .where(scoped ? eq(users.areaId, user.areaId ?? "__none__") : undefined);
+
+  return { projects: projectRows, users: userRows };
+}
+
+/**
+ * Cria várias tarefas de uma vez (uma por linha de texto). Mesmo projeto e,
+ * opcionalmente, mesmo responsável/prioridade. Sintaxe por linha: o título; se
+ * começar com "!" vira prioridade alta, "!!" crítica (atalho rápido).
+ */
+export async function createTasksBulk(input: {
+  projectId: string;
+  lines: string[];
+  assigneeId?: string;
+  priority?: "critica" | "alta" | "media" | "baixa";
+}) {
+  const session = await requireProjectAccess(input.projectId, { contributor: true });
+  const titles = input.lines.map((l) => l.trim()).filter(Boolean);
+  if (titles.length === 0) return { created: 0 };
+
+  let created = 0;
+  for (const rawTitle of titles) {
+    let title = rawTitle;
+    let priority = input.priority ?? "media";
+    if (title.startsWith("!!")) { priority = "critica"; title = title.slice(2).trim(); }
+    else if (title.startsWith("!")) { priority = "alta"; title = title.slice(1).trim(); }
+    if (!title) continue;
+
+    const taskId = crypto.randomUUID();
+    const insertTask = db
+      .insert(tasks)
+      .values({ id: taskId, projectId: input.projectId, title, priority, createdBy: session.user.id });
+    const insertLog = db.insert(activityLog).values({
+      userId: session.user.id,
+      entityType: "task",
+      entityId: taskId,
+      action: "created",
+      details: { title, via: "bulk" },
+    });
+    if (input.assigneeId) {
+      const insertAssignee = db.insert(taskAssignees).values({ taskId, userId: input.assigneeId });
+      await db.batch([insertTask, insertAssignee, insertLog]);
+    } else {
+      await db.batch([insertTask, insertLog]);
+    }
+    created++;
+  }
+
+  revalidatePath("/", "layout");
+  return { created };
+}

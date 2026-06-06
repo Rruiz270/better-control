@@ -3,8 +3,26 @@ export type VoiceCommand =
   | { type: "create_project"; area?: string; name: string }
   | { type: "update_task"; title: string; status: string }
   | { type: "add_note"; project?: string; content: string }
+  | { type: "log_time"; project?: string; minutes: number }
   | { type: "navigate"; destination: string }
   | { type: "unknown"; raw: string };
+
+/** "2 horas" → 120, "90 minutos" → 90, "1h30" → 90, "meia hora" → 30. */
+export function parseDuration(text: string): number | null {
+  if (/meia\s+hora/.test(text)) return 30;
+
+  // "1h30" / "1 h 30" (horas e minutos juntos)
+  const hm = text.match(/(\d+)\s*h(?:oras?)?\s*(\d{1,2})\b/);
+  if (hm) return parseInt(hm[1], 10) * 60 + parseInt(hm[2], 10);
+
+  const hours = text.match(/(\d+(?:[.,]\d+)?)\s*(?:h|horas?)\b/);
+  if (hours) return Math.round(parseFloat(hours[1].replace(",", ".")) * 60);
+
+  const mins = text.match(/(\d+)\s*(?:min|minutos?)\b/);
+  if (mins) return parseInt(mins[1], 10);
+
+  return null;
+}
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -73,6 +91,18 @@ export function parseVoiceCommand(raw: string): VoiceCommand {
     .trim();
 
   if (!text) return { type: "unknown", raw };
+
+  // Log time: "lancei 2 horas no projeto Portal do Aluno" / "registra 90 minutos
+  // no Radar 360" / "gastei meia hora em Community". Detectado cedo (antes do
+  // laço de status) porque captura uma duração explícita, sem ambiguidade.
+  if (/\b(lanc|registr|gast|trabalh|dediqu|apont|passei)/.test(text)) {
+    const minutes = parseDuration(text);
+    if (minutes && minutes > 0) {
+      const projMatch = text.match(/(?:\s(?:no|na|do|da|em|para o?|para a?)\s+(?:projeto\s+)?(.+))$/);
+      const project = projMatch?.[1]?.trim();
+      return { type: "log_time", minutes, project };
+    }
+  }
 
   // Create task: "crie tarefa X no projeto Y" / "nova tarefa X" / "adicione tarefa X"
   const createTaskMatch = text.match(

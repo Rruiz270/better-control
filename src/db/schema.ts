@@ -317,3 +317,92 @@ export const financialPlans = pgTable(
     ),
   ]
 );
+
+// --- Rateio de tempo/custo dos colaboradores ---------------------------------
+// Modelo HÍBRIDO (decisão de produto):
+//  · `allocations`     = % de tempo PLANEJADO por pessoa/projeto/mês (head define).
+//  · `timeEntries`     = minutos REAIS lançados (voz/manual), capturados sem fricção.
+//  · `collaboratorCost`= custo mensal carregado (salário+encargos) + capacidade.
+// O rateio de custo por projeto usa o REAL (minutos) quando existe; se a pessoa
+// não lançou tempo no mês, cai para o PLANEJADO (%). Math pura em `src/lib/rateio.ts`.
+
+/** Origem do lançamento de tempo. `voice` = via comando de voz (baixa fricção). */
+export const timeEntrySourceEnum = pgEnum("time_entry_source", [
+  "manual",
+  "voice",
+  "timer",
+]);
+
+/**
+ * Custo carregado do colaborador por mês. Dado sensível (salário) — só admin
+ * lê/escreve (guard em actions). `capacityMinutes` = minutos úteis no mês,
+ * usado para detectar sub/sobre-alocação. Único por (user, ano, mês).
+ */
+export const collaboratorCost = pgTable(
+  "collaborator_cost",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    year: integer("year").notNull(),
+    month: integer("month").notNull(), // 1..12
+    monthlyCost: numeric("monthly_cost", { precision: 14, scale: 2 }).notNull().default("0"),
+    capacityMinutes: integer("capacity_minutes").notNull().default(9600), // ~160h/mês
+    updatedBy: uuid("updated_by").references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("collaborator_cost_unique_idx").on(table.userId, table.year, table.month),
+  ]
+);
+
+/**
+ * % de tempo PLANEJADO de uma pessoa num projeto, por mês. A soma por pessoa/mês
+ * deve ficar ~100% (validado na action, não no banco). Único por (user, projeto, ano, mês).
+ */
+export const allocations = pgTable(
+  "allocations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    projectId: uuid("project_id")
+      .references(() => projects.id, { onDelete: "cascade" })
+      .notNull(),
+    year: integer("year").notNull(),
+    month: integer("month").notNull(), // 1..12
+    percent: numeric("percent", { precision: 5, scale: 2 }).notNull().default("0"),
+    updatedBy: uuid("updated_by").references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("allocations_unique_idx").on(
+      table.userId,
+      table.projectId,
+      table.year,
+      table.month
+    ),
+  ]
+);
+
+/**
+ * Minutos REAIS gastos por uma pessoa num projeto, num dia. Append-only (cada
+ * lançamento é uma linha) — o agregado mensal é somado na leitura. É a fonte do
+ * "minuto que cada colaborador gasta em cada projeto".
+ */
+export const timeEntries = pgTable("time_entries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  projectId: uuid("project_id")
+    .references(() => projects.id, { onDelete: "cascade" })
+    .notNull(),
+  date: date("date").notNull(),
+  minutes: integer("minutes").notNull(),
+  source: timeEntrySourceEnum("source").notNull().default("manual"),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

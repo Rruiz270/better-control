@@ -34,6 +34,17 @@ yarn-error.log*
 credentials*.local.*
 *.secrets.txt
 
+# scripts operacionais locais com dados sensíveis (salários, nomes, caminhos
+# locais) e/ou que escrevem em prod — NUNCA commitar (repo público)
+scripts/seed-i10.ts
+scripts/seed-people-revenue.ts
+scripts/import-better.ts
+scripts/load-better-actuals.ts
+scripts/fix-idiomas-cost.ts
+scripts/dump-state.ts
+scripts/reset-password.ts
+scripts/seed-default-kpis.ts
+
 # env files (can opt-in for committing if needed)
 .env*
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { tasks, projects, areas, notes, activityLog } from "@/db/schema";
+import { tasks, projects, areas, notes, activityLog, timeEntries } from "@/db/schema";
 import { eq, ilike } from "drizzle-orm";
 import {
   AuthorizationError,
@@ -226,6 +226,65 @@ export async function POST(req: Request) {
         return NextResponse.json({
           ok: true,
           message: "Nota adicionada!",
+        });
+      }
+
+      case "log_time": {
+        let projectId: string | null = null;
+
+        if (command.project) {
+          const [proj] = await db
+            .select()
+            .from(projects)
+            .where(ilike(projects.name, `%${command.project}%`))
+            .limit(1);
+          projectId = proj?.id || null;
+        }
+
+        if (!projectId) projectId = await defaultProjectId();
+
+        if (!projectId) {
+          return NextResponse.json({
+            ok: false,
+            message: "Nenhum projeto acessível encontrado.",
+          });
+        }
+
+        // Members podem lançar tempo na própria área (contributor).
+        await requireProjectAccess(projectId, { contributor: true });
+
+        const minutes = Math.round(Number(command.minutes));
+        if (!Number.isFinite(minutes) || minutes <= 0) {
+          return NextResponse.json({ ok: false, message: "Duração não reconhecida." });
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+        const entryId = crypto.randomUUID();
+        await db.batch([
+          db.insert(timeEntries).values({
+            id: entryId,
+            userId,
+            projectId,
+            date: today,
+            minutes,
+            source: "voice",
+          }),
+          db.insert(activityLog).values({
+            userId,
+            entityType: "project",
+            entityId: projectId,
+            action: "time_logged",
+            details: { minutes, via: "voice" },
+          }),
+        ]);
+
+        const label =
+          minutes >= 60
+            ? `${(minutes / 60).toFixed(minutes % 60 ? 1 : 0)}h`
+            : `${minutes} min`;
+        return NextResponse.json({
+          ok: true,
+          message: `Tempo registrado: ${label}.`,
         });
       }
 
