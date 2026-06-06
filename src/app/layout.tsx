@@ -16,7 +16,7 @@ const sourceSerif = Source_Serif_4({
 export const metadata: Metadata = {
   title: "Better Control",
   description: "Sistema de gestão do Grupo Better — Projetos, Tarefas, KPIs",
-  manifest: "/manifest.json",
+  manifest: "/better-control/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

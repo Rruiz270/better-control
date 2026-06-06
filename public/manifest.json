@@ -2,13 +2,14 @@
   "name": "Better Control",
   "short_name": "BetterControl",
   "description": "Sistema de Gestão do Grupo Better",
-  "start_url": "/",
+  "start_url": "/better-control/",
+  "scope": "/better-control/",
   "display": "standalone",
   "background_color": "#0A1F44",
   "theme_color": "#00B4D8",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/better-control/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

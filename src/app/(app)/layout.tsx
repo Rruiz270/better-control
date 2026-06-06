@@ -17,9 +17,11 @@ export default async function AppLayout({
 
   return (
     <SessionProvider>
-      <div className="flex min-h-screen bg-background">
+      {/* App-shell de altura fixa: a casca ocupa exatamente a viewport e SÓ o
+          <main> rola. Sidebar e header ficam fixos (não "desce a página inteira"). */}
+      <div className="flex h-screen overflow-hidden bg-background">
         <Sidebar userName={user.name} userRole={user.role} />
-        <main className="flex-1 pb-20 md:pb-0">{children}</main>
+        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
         <MobileBottomNav />
         <VoiceAssistant />
       </div>
