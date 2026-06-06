@@ -4,18 +4,47 @@ import { db } from "@/db";
 import { expenses, costCenters, supplierCostCenter } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireSession, isAdmin, AuthorizationError, type SessionUser } from "@/lib/authorization";
+import { requireFinanceiroAccess } from "@/lib/authorization";
 
-// Dados financeiros sensíveis → só admin.
-async function assertAdmin() {
-  const s = await requireSession();
-  if (!isAdmin(s.user as SessionUser)) throw new AuthorizationError("Apenas admin acessa despesas.");
-  return s;
-}
+// Dados financeiros sensíveis → só Modo Financeiro (Raphael + Carlos).
+const assertFinanceiro = requireFinanceiroAccess;
 
 export async function getCostCenters() {
-  await assertAdmin();
+  await assertFinanceiro();
   return db.select().from(costCenters).orderBy(costCenters.name);
+}
+
+/** Resumo por centro de custo (alimenta o dashboard financeiro). */
+export async function getCostCenterDashboard(year: number) {
+  await assertFinanceiro();
+  const rows = await db.select().from(expenses).where(eq(expenses.year, year));
+  const ccs = await db.select().from(costCenters);
+  const ccName = new Map(ccs.map((c) => [c.id, c]));
+
+  const byCC = new Map<string | null, { total: number; count: number; months: number[] }>();
+  let total = 0;
+  for (const r of rows) {
+    const v = Number(r.value);
+    total += v;
+    const cur = byCC.get(r.costCenterId) ?? { total: 0, count: 0, months: Array(12).fill(0) };
+    cur.total += v;
+    cur.count += 1;
+    if (r.month >= 1 && r.month <= 12) cur.months[r.month - 1] += v;
+    byCC.set(r.costCenterId, cur);
+  }
+
+  const centers = [...byCC.entries()]
+    .map(([id, d]) => ({
+      id,
+      name: id ? ccName.get(id)?.name ?? "—" : "Sem centro",
+      color: id ? ccName.get(id)?.color ?? "#94A3B8" : "#F59E0B",
+      total: d.total,
+      count: d.count,
+      months: d.months,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  return { centers, total, unassigned: byCC.get(null)?.total ?? 0 };
 }
 
 export type SupplierRow = {
@@ -33,7 +62,7 @@ export async function getExpenseLedger(year: number): Promise<{
   byCostCenter: { costCenterId: string | null; total: number }[];
   total: number;
 }> {
-  await assertAdmin();
+  await assertFinanceiro();
   const rows = await db.select().from(expenses).where(eq(expenses.year, year));
 
   // Consolida por entityKey (CPF/CNPJ ou nome) — junta variações de nome.
@@ -67,7 +96,7 @@ export async function getExpenseLedger(year: number): Promise<{
  * (supplierCostCenter.name guarda o entityKey.)
  */
 export async function assignSupplierCostCenter(entityKey: string, costCenterId: string | null) {
-  await assertAdmin();
+  await assertFinanceiro();
   if (costCenterId) {
     await db.insert(supplierCostCenter)
       .values({ name: entityKey, costCenterId })

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { hasFinanceiroAccess } from "@/lib/authorization";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileBottomNav from "@/components/layout/MobileBottomNav";
 import SessionProvider from "@/components/layout/SessionProvider";
@@ -13,14 +14,15 @@ export default async function AppLayout({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const user = session.user as { name: string; role: string };
+  const user = session.user as { id: string; name: string; role: string };
+  const financeiro = await hasFinanceiroAccess(user.id);
 
   return (
     <SessionProvider>
       {/* App-shell de altura fixa: a casca ocupa exatamente a viewport e SÓ o
           <main> rola. Sidebar e header ficam fixos (não "desce a página inteira"). */}
       <div className="flex h-screen overflow-hidden bg-background">
-        <Sidebar userName={user.name} userRole={user.role} />
+        <Sidebar userName={user.name} userRole={user.role} financeiroAccess={financeiro} />
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
         <MobileBottomNav />
         <VoiceAssistant />

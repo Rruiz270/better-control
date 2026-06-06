@@ -22,13 +22,13 @@ import {
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
-const NAV_ITEMS = [
+// Modo GESTÃO (operação) e modo FINANCEIRO (financeiro, só quem tem acesso).
+const GESTAO_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/areas", label: "Áreas", icon: FolderKanban },
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
   { href: "/reports", label: "Relatórios", icon: BarChart3 },
   { href: "/rateio", label: "Rateio", icon: PieChart },
-  { href: "/despesas", label: "Despesas", icon: Receipt, adminOnly: true },
   { href: "/team", label: "Equipe", icon: Users },
   { href: "/settings/automations", label: "Automações", icon: Zap },
   { href: "/activity", label: "Atividade", icon: Activity },
@@ -37,15 +37,29 @@ const NAV_ITEMS = [
   { href: "/settings", label: "Config", icon: Settings },
 ];
 
+const FINANCEIRO_NAV = [
+  { href: "/financeiro", label: "Centro de Custo", icon: PieChart },
+  { href: "/despesas", label: "Despesas & Pessoas", icon: Receipt },
+];
+
+// Rotas que pertencem ao modo financeiro.
+const FINANCEIRO_PREFIXES = ["/financeiro", "/despesas"];
+
 export default function Sidebar({
   userName,
   userRole,
+  financeiroAccess,
 }: {
   userName: string;
   userRole: string;
+  financeiroAccess: boolean;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+
+  const inFinanceiro = FINANCEIRO_PREFIXES.some((p) => pathname.startsWith(p));
+  const mode: "financeiro" | "gestao" = inFinanceiro && financeiroAccess ? "financeiro" : "gestao";
+  const navItems = mode === "financeiro" ? FINANCEIRO_NAV : GESTAO_NAV;
 
   return (
     <aside
@@ -69,8 +83,30 @@ export default function Sidebar({
         </button>
       </div>
 
+      {/* Seletor de modo (Financeiro só p/ quem tem acesso) */}
+      {financeiroAccess && !collapsed && (
+        <div className="flex gap-1 mx-2 mt-3 p-1 rounded-lg bg-white/5">
+          <Link
+            href="/dashboard"
+            className={`flex-1 text-center text-xs font-bold py-1.5 rounded-md transition-colors ${
+              mode === "gestao" ? "bg-cyan/20 text-cyan" : "text-white/50 hover:text-white"
+            }`}
+          >
+            Gestão
+          </Link>
+          <Link
+            href="/financeiro"
+            className={`flex-1 text-center text-xs font-bold py-1.5 rounded-md transition-colors ${
+              mode === "financeiro" ? "bg-cyan/20 text-cyan" : "text-white/50 hover:text-white"
+            }`}
+          >
+            Financeiro
+          </Link>
+        </div>
+      )}
+
       <nav className="flex-1 py-4 space-y-1 px-2">
-        {NAV_ITEMS.filter((item) => !item.adminOnly || userRole === "admin").map((item) => {
+        {navItems.filter((item) => !("adminOnly" in item && item.adminOnly) || userRole === "admin").map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
           return (

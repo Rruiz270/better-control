@@ -1,6 +1,6 @@
 import { auth } from "./auth";
 import { db } from "@/db";
-import { projects, tasks, kpis, automationRules, notes } from "@/db/schema";
+import { projects, tasks, kpis, automationRules, notes, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   AuthorizationError,
@@ -31,6 +31,24 @@ export async function getSession() {
 export async function requireSession() {
   const session = await getSession();
   if (!session) throw new AuthorizationError("Sessão não encontrada. Faça login.");
+  return session;
+}
+
+/** Acesso ao Modo Financeiro (flag por usuário no DB). Dados sensíveis. */
+export async function hasFinanceiroAccess(userId: string): Promise<boolean> {
+  const [u] = await db
+    .select({ fin: users.financeiroAccess })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return !!u?.fin;
+}
+
+export async function requireFinanceiroAccess() {
+  const session = await requireSession();
+  if (!(await hasFinanceiroAccess(session.user.id))) {
+    throw new AuthorizationError("Sem acesso ao Modo Financeiro.");
+  }
   return session;
 }
 

@@ -3,7 +3,7 @@
 // faz upsert em `expenses`. Sem credencial. Usado pela rota de cron e por triggers
 // manuais. Upsert em lote (poucos statements) p/ caber no tempo do serverless.
 import { db } from "@/db";
-import { expenses, costCenters, supplierCostCenter, areas } from "@/db/schema";
+import { expenses, supplierCostCenter, entityTax } from "@/db/schema";
 import { sql } from "drizzle-orm";
 
 const BASE = "https://www.institutoi10.com.br/better-financeiro";
@@ -24,18 +24,13 @@ function chunk<T>(arr: T[], n: number): T[][] {
 }
 
 export async function runExpensesSync(year = 2026): Promise<{ count: number; total: number }> {
-  // 1) centros de custo (idempotente)
-  const areaRows = await db.select().from(areas);
-  for (const a of areaRows) {
-    await db.insert(costCenters)
-      .values({ name: a.name, slug: a.slug, areaId: a.id, color: a.color })
-      .onConflictDoNothing({ target: costCenters.slug });
-  }
-  await db.insert(costCenters)
-    .values({ name: "Compartilhado / Overhead", slug: "compartilhado", color: "#94A3B8" })
-    .onConflictDoNothing({ target: costCenters.slug });
+  // Centros de custo vêm do seed do Excel (scripts/seed-cost-centers). Aqui só
+  // aplicamos: diretório nome→CNPJ + regra CNPJ→centro.
+  // 1) diretório nome→CNPJ (entityTax)
+  const dir = await db.select().from(entityTax);
+  const taxByName = new Map(dir.map((d) => [d.nameUpper, d.taxId]));
 
-  // 2) regras nome→centro (keyed por entityKey, guardado em .name)
+  // 2) regras entityKey(CNPJ/nome)→centro
   const rules = await db.select().from(supplierCostCenter);
   const ruleMap = new Map(rules.map((r) => [r.name, r.costCenterId]));
 
@@ -65,7 +60,8 @@ export async function runExpensesSync(year = 2026): Promise<{ count: number; tot
     const category = String(r.categoria || "—");
     const source = String(r.grupo || "").trim() === "" || String(r.fonte || "").toUpperCase().includes("BMA") ? "bma" : "omie";
     const key = `${source}|${name}|${category}|${year}-${col}`;
-    const taxId = taxIds.get(name.toUpperCase()) ?? null;
+    // taxId: diretório do Excel (CNPJ de fornecedores) tem prioridade; senão CPF de pessoa.
+    const taxId = taxByName.get(name.toUpperCase()) ?? taxIds.get(name.toUpperCase()) ?? null;
     const entityKey = taxId ?? name.toUpperCase();
     const cur = agg.get(key) ?? { externalKey: key, source, kind: pessoaNames.has(name.toUpperCase()) ? "pessoa" : "fornecedor", name, taxId, entityKey, category, bucket: String(r.projeto || ""), year, month: col, value: 0 };
     cur.value += Number(r.valor_pago) || 0;

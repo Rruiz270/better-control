@@ -64,6 +64,11 @@ export const users = pgTable("users", {
   areaId: uuid("area_id"),
   phone: text("phone"),
   avatarUrl: text("avatar_url"),
+  // Acesso ao Modo Financeiro (dados sensíveis) — por permissão, não 2ª senha.
+  // Inicialmente só Raphael e Carlos Mendes.
+  financeiroAccess: boolean("financeiro_access").notNull().default(false),
+  // CPF/CNPJ do colaborador — ponte user ↔ expenses (rateio usa custo real).
+  taxId: text("tax_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -453,11 +458,19 @@ export const expenses = pgTable(
   (table) => [uniqueIndex("expenses_external_key_idx").on(table.externalKey)]
 );
 
-/** Regra fornecedor/pessoa → centro de custo, reaplicada a cada sync. */
+/** Regra fornecedor/pessoa → centro de custo (keyed por entityKey=CNPJ ou nome),
+ * reaplicada a cada sync. */
 export const supplierCostCenter = pgTable("supplier_cost_center", {
-  name: text("name").primaryKey(),
+  name: text("name").primaryKey(), // entityKey (CNPJ/CPF ou nome em maiúsculas)
   costCenterId: uuid("cost_center_id")
     .references(() => costCenters.id, { onDelete: "cascade" })
     .notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Diretório nome→CPF/CNPJ (do Excel/financeiro). O arquivo publicado só traz
+ * NOME; aqui resolvemos o documento p/ consolidar por entityKey=CNPJ. */
+export const entityTax = pgTable("entity_tax", {
+  nameUpper: text("name_upper").primaryKey(),
+  taxId: text("tax_id").notNull(),
 });
