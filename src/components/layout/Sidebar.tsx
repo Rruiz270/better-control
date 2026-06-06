@@ -15,6 +15,8 @@ import {
   PieChart,
   Receipt,
   TrendingUp,
+  Briefcase,
+  GraduationCap,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -41,6 +43,8 @@ const GESTAO_NAV = [
 const FINANCEIRO_NAV = [
   { href: "/financeiro", label: "Visão Geral", icon: BarChart3 },
   { href: "/financeiro/receitas", label: "Receitas", icon: TrendingUp },
+  { href: "/financeiro/vendas", label: "Vendas", icon: Briefcase },
+  { href: "/financeiro/alunos", label: "Alunos", icon: GraduationCap },
   { href: "/financeiro/centro-de-custo", label: "Centro de Custo", icon: PieChart },
   { href: "/despesas", label: "Despesas & Pessoas", icon: Receipt },
 ];

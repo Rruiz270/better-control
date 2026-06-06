@@ -1,7 +1,10 @@
 "use server";
 
 import { requireFinanceiroAccess } from "@/lib/authorization";
-import { getReceitas, getDespesaMensal, type ReceitaData } from "@/lib/financeiroData";
+import {
+  getReceitas, getDespesaMensal, getAlunos, getVendas,
+  type ReceitaData, type AlunosData, type VendasData,
+} from "@/lib/financeiroData";
 
 export type OverviewData = {
   receita: number[];
@@ -31,4 +34,14 @@ export async function getFinanceiroOverview(year: number): Promise<OverviewData>
 export async function getReceitasView(year: number): Promise<ReceitaData> {
   await requireFinanceiroAccess();
   return getReceitas(year);
+}
+
+export async function getAlunosView(): Promise<AlunosData> {
+  await requireFinanceiroAccess();
+  return getAlunos();
+}
+
+export async function getVendasView(): Promise<VendasData> {
+  await requireFinanceiroAccess();
+  return getVendas();
 }
