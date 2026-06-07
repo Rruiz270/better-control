@@ -10,6 +10,7 @@ import {
   financialPlans,
   areas,
   activityLog,
+  expenses,
 } from "@/db/schema";
 import { and, eq, gte, lt, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -289,12 +290,30 @@ export async function getRateioRollup(
   if (projectRows.length === 0) return [];
   const scopeIds = new Set(projectRows.map((p) => p.id));
 
-  // Custos do mês, por pessoa.
+  // Custo do mês por pessoa = REAL (despesas/folha via CPF/CNPJ) quando há match;
+  // senão o salário manual (collaboratorCost). Fecha o ciclo despesa→rateio→30x.
   const costs = await db
     .select()
     .from(collaboratorCost)
     .where(and(eq(collaboratorCost.year, year), eq(collaboratorCost.month, month)));
-  const costByUser = new Map(costs.map((c) => [c.userId, Number(c.monthlyCost)]));
+  const manualByUser = new Map(costs.map((c) => [c.userId, Number(c.monthlyCost)]));
+
+  // Custo real do mês, agregado por entityKey (CPF/CNPJ) na tabela expenses.
+  const expRows = await db
+    .select({ entityKey: expenses.entityKey, value: expenses.value })
+    .from(expenses)
+    .where(and(eq(expenses.year, year), eq(expenses.month, month)));
+  const realByEntity = new Map<string, number>();
+  for (const e of expRows) realByEntity.set(e.entityKey, (realByEntity.get(e.entityKey) ?? 0) + Number(e.value));
+
+  // taxId por usuário (ponte). Custo efetivo = real(taxId) ?? manual ?? 0.
+  const userTax = await db.select({ id: users.id, taxId: users.taxId }).from(users);
+  const costByUser = new Map<string, number>();
+  for (const u of userTax) {
+    const real = u.taxId ? realByEntity.get(u.taxId) : undefined;
+    const cost = real ?? manualByUser.get(u.id) ?? 0;
+    if (cost > 0) costByUser.set(u.id, cost);
+  }
 
   // Tempo real do mês (todas as pessoas), agregado por pessoa→projeto.
   const entries = await db
