@@ -60,3 +60,4 @@ scripts/seed-cost-centers.ts
 scripts/seed-hierarchy.ts
 scripts/seed-org.ts
 scripts/seed-user-taxid.ts
+_review/
