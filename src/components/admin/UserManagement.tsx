@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus, Save, KeyRound, Loader2, Check, X } from "lucide-react";
-import { createUser, updateUser, resetUserPassword, setUserAreas } from "@/lib/actions/users";
+import { createUser, updateUser, resetUserPassword, setUserAreas, createInvite, approveUser } from "@/lib/actions/users";
 
 type Role = "admin" | "head" | "member";
 type User = {
@@ -14,6 +14,7 @@ type User = {
   areaId: string | null;
   areaName: string | null;
   areaIds: string[];
+  status: string;
 };
 type Area = { id: string; name: string };
 
@@ -61,6 +62,14 @@ function UserRow({ user, areas }: { user: User; areas: Area[] }) {
     });
   }
 
+  function approve() {
+    startTransition(async () => {
+      const r = await approveUser(user.id);
+      setMsg({ text: r.emailed ? "Aprovado + email enviado" : "Aprovado (email pendente: setar RESEND_API_KEY)", ok: true });
+      router.refresh();
+    });
+  }
+
   return (
     <div className="border-t border-gray-100 py-3 space-y-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -100,6 +109,14 @@ function UserRow({ user, areas }: { user: User; areas: Area[] }) {
         >
           <KeyRound size={12} /> Senha
         </button>
+        {user.status !== "active" && (
+          <span className={`text-[10px] font-bold px-2 py-1 rounded ${user.status === "pending" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>{user.status === "pending" ? "PENDENTE" : "CONVIDADO"}</span>
+        )}
+        {user.status === "pending" && (
+          <button onClick={approve} disabled={isPending} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green/15 text-green text-xs font-bold hover:bg-green/25">
+            <Check size={12} /> Aprovar
+          </button>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[10px] font-bold text-gray-400 uppercase">Áreas:</span>
@@ -138,6 +155,22 @@ export default function UserManagement({ users, areas }: { users: User[]; areas:
     role: "member" as Role,
     areaId: "",
   });
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ name: "", role: "member" as Role });
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+
+  function invite() {
+    setErr(null);
+    startTransition(async () => {
+      const r = await createInvite({ name: inviteForm.name, role: inviteForm.role, areaIds: [] });
+      if (r.ok && r.link) {
+        setInviteLink(`${location.origin}${r.link}`);
+        setInviteForm({ name: "", role: "member" });
+        setShowInvite(false);
+        router.refresh();
+      } else setErr(r.error ?? "Erro ao convidar.");
+    });
+  }
 
   function submit() {
     setErr(null);
@@ -167,13 +200,25 @@ export default function UserManagement({ users, areas }: { users: User[]; areas:
           <h3 className="text-sm font-bold text-navy">Usuários ({users.length})</h3>
           <p className="text-xs text-gray-400">Criar/editar acessos e atribuir áreas (admin).</p>
         </div>
-        <button
-          onClick={() => setShowAdd((s) => !s)}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg gradient-main text-white text-sm font-medium"
-        >
-          <UserPlus size={16} /> Novo
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowInvite((s) => !s)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-cyan/15 text-navy text-sm font-medium"><UserPlus size={16} /> Convidar</button>
+          <button onClick={() => setShowAdd((s) => !s)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg gradient-main text-white text-sm font-medium"><UserPlus size={16} /> Novo</button>
+        </div>
       </div>
+
+      {showInvite && (
+        <div className="bg-gray-50 rounded-lg p-3 mb-3 flex flex-wrap items-end gap-2">
+          <input value={inviteForm.name} onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })} placeholder="Nome do convidado" className="flex-1 min-w-[160px] px-2 py-1.5 rounded-lg border border-gray-200 text-sm" />
+          <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as Role })} className="px-2 py-1.5 rounded-lg border border-gray-200 text-sm"><option value="member">Membro</option><option value="head">Head</option></select>
+          <button onClick={invite} disabled={isPending || !inviteForm.name.trim()} className="px-3 py-1.5 rounded-lg gradient-accent text-navy-dark text-sm font-bold disabled:opacity-50">Gerar link</button>
+          <p className="w-full text-[11px] text-gray-400">A pessoa abre o link, define email + senha; depois você <b>aprova</b> aqui e ela recebe boas-vindas. (As áreas você marca depois de criada.)</p>
+        </div>
+      )}
+      {inviteLink && (
+        <p className="text-xs bg-cyan/10 border border-cyan/30 rounded-lg px-3 py-2 mb-3 text-navy break-all">
+          Link de convite (envie p/ a pessoa): <b className="font-mono">{inviteLink}</b>
+        </p>
+      )}
 
       {created && (
         <p className="text-xs bg-green/10 border border-green/30 rounded-lg px-3 py-2 mb-3 text-green">

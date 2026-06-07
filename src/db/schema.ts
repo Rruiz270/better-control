@@ -71,6 +71,10 @@ export const users = pgTable("users", {
   financeiroAccess: boolean("financeiro_access").notNull().default(false),
   // CPF/CNPJ do colaborador — ponte user ↔ expenses (rateio usa custo real).
   taxId: text("tax_id"),
+  // Onboarding: invited (convidado, sem senha) → pending (definiu email+senha, aguarda
+  // aprovação) → active (aprovado, pode logar). Existentes = active.
+  status: text("status").notNull().default("active"),
+  inviteToken: text("invite_token"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

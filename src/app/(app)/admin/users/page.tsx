@@ -28,6 +28,7 @@ export default async function AdminUsersPage() {
             areaId: u.areaId,
             areaName: u.areaName,
             areaIds: u.areaIds,
+            status: u.status,
           }))}
           areas={areas.map((a) => ({ id: a.id, name: a.name }))}
         />

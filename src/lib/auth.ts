@@ -30,6 +30,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const valid = await compare(password, user.passwordHash);
         if (!valid) return null;
+        // Onboarding: só usuários aprovados (active) entram. Convidados/pendentes não.
+        if (user.status !== "active") return null;
 
         return {
           id: user.id,

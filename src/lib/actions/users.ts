@@ -32,6 +32,7 @@ export async function listUsers() {
       role: users.role,
       areaId: users.areaId,
       areaName: areas.name,
+      status: users.status,
     })
     .from(users)
     .leftJoin(areas, eq(users.areaId, areas.id))
@@ -103,6 +104,64 @@ export async function updateUser(
   await db.update(users).set(patch).where(eq(users.id, userId));
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+// --- Onboarding: convite → setup (público) → aprovação → boas-vindas ----------
+
+/** Admin cria um convite: usuário "invited" com token. Retorna o link de setup. */
+export async function createInvite(data: { name: string; role: Role; areaIds: string[] }): Promise<{ ok: boolean; link?: string; error?: string }> {
+  await requireAdmin();
+  if (!data.name.trim()) return { ok: false, error: "Nome é obrigatório." };
+  const token = crypto.randomUUID().replace(/-/g, "");
+  const passwordHash = await hash(crypto.randomUUID(), 12); // placeholder até o setup
+  const [u] = await db.insert(users).values({
+    name: data.name.trim(), email: `invite-${token}@pending.local`, passwordHash,
+    role: data.role, areaId: data.areaIds[0] ?? null, status: "invited", inviteToken: token,
+  }).returning({ id: users.id });
+  if (data.areaIds.length) await db.insert(userAreas).values(data.areaIds.map((areaId) => ({ userId: u.id, areaId })));
+  revalidatePath("/", "layout");
+  return { ok: true, link: `/better-control/setup?token=${token}` };
+}
+
+/** PÚBLICO (sem login): a pessoa convidada define email real + senha. Token é a chave. */
+export async function completeSetup(token: string, email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  if (!token) return { ok: false, error: "Convite inválido." };
+  const mail = email.trim().toLowerCase();
+  if (!mail || password.length < 6) return { ok: false, error: "Email e senha (mín. 6) obrigatórios." };
+  const [inv] = await db.select().from(users).where(eq(users.inviteToken, token)).limit(1);
+  if (!inv || inv.status !== "invited") return { ok: false, error: "Convite inválido ou já usado." };
+  const [clash] = await db.select({ id: users.id }).from(users).where(eq(users.email, mail)).limit(1);
+  if (clash && clash.id !== inv.id) return { ok: false, error: "Email já cadastrado." };
+  const passwordHash = await hash(password, 12);
+  await db.update(users).set({ email: mail, passwordHash, status: "pending", inviteToken: null, updatedAt: new Date() }).where(eq(users.id, inv.id));
+  return { ok: true };
+}
+
+/** Admin aprova um usuário pendente → vira active e recebe boas-vindas. */
+export async function approveUser(userId: string): Promise<{ ok: boolean; emailed: boolean }> {
+  await requireAdmin();
+  const [u] = await db.update(users).set({ status: "active", updatedAt: new Date() }).where(eq(users.id, userId)).returning({ name: users.name, email: users.email });
+  const emailed = u ? await sendWelcomeEmail(u.email, u.name) : false;
+  revalidatePath("/", "layout");
+  return { ok: true, emailed };
+}
+
+/** Envia boas-vindas via Resend se RESEND_API_KEY existir; senão loga (no-op). */
+async function sendWelcomeEmail(to: string, name: string): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) { console.log(`[welcome] (sem RESEND_API_KEY) seria enviado p/ ${to}`); return false; }
+  try {
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: process.env.WELCOME_FROM || "Better Control <noreply@institutoi10.com.br>",
+        to: [to], subject: "Bem-vindo(a) ao Better Control",
+        html: `<p>Olá ${name},</p><p>Seu acesso ao <b>Better Control</b> foi aprovado. Acesse <a href="https://institutoi10.com.br/better-control/login">institutoi10.com.br/better-control</a> com seu email e senha.</p><p>Bom trabalho! 🚀</p>`,
+      }),
+    });
+    return r.ok;
+  } catch { return false; }
 }
 
 export async function resetUserPassword(
