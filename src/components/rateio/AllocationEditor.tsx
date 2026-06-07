@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Save, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Save, Loader2, AlertTriangle, CheckCircle2, Copy } from "lucide-react";
 import {
   setAllocation,
   setCollaboratorCost,
   getAllocationsForUser,
   getCollaboratorCost,
+  copyAllocationsFromPreviousMonth,
   type RateioContext,
 } from "@/lib/actions/rateio";
 
@@ -24,6 +25,7 @@ export default function AllocationEditor({
   const [cost, setCost] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -48,7 +50,15 @@ export default function AllocationEditor({
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, tick]);
+
+  function copyPrev() {
+    setMsg(null);
+    startTransition(async () => {
+      try { const { copied } = await copyAllocationsFromPreviousMonth(userId, year, month); setMsg(`Copiado do mês anterior (${copied}).`); setTick((t) => t + 1); }
+      catch { setMsg("Erro ao copiar."); }
+    });
+  }
 
   // Escopo por área: a pessoa só aloca em projetos da PRÓPRIA área. Pessoa sem
   // área (ex.: admin) enxerga tudo.
@@ -81,7 +91,10 @@ export default function AllocationEditor({
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5">
-      <h3 className="text-sm font-bold text-navy mb-4">Alocação planejada (%)</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-bold text-navy">Alocação planejada (%)</h3>
+        <button onClick={copyPrev} disabled={pending || !userId} className="text-[11px] font-bold text-cyan flex items-center gap-1 disabled:opacity-50"><Copy size={12} />copiar mês anterior</button>
+      </div>
 
       <select
         value={userId}

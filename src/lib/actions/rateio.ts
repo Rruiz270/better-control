@@ -196,6 +196,27 @@ export async function setAllocation(input: {
   revalidatePath("/", "layout");
 }
 
+/** Copia as alocações do mês anterior p/ o mês atual (nudge de preenchimento). */
+export async function copyAllocationsFromPreviousMonth(userId: string, year: number, month: number) {
+  const session = await requireSession();
+  const user = session.user as SessionUser;
+  if (!isAdmin(user)) {
+    const editable = await editablePeopleFor(user);
+    if (editable && !editable.has(userId)) throw new AuthorizationError("Fora do seu escopo.");
+  }
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const prev = await db.select().from(allocations).where(and(eq(allocations.userId, userId), eq(allocations.year, prevYear), eq(allocations.month, prevMonth)));
+  let n = 0;
+  for (const p of prev) {
+    await db.insert(allocations).values({ userId, projectId: p.projectId, year, month, percent: p.percent, updatedBy: user.id })
+      .onConflictDoUpdate({ target: [allocations.userId, allocations.projectId, allocations.year, allocations.month], set: { percent: p.percent, updatedBy: user.id, updatedAt: new Date() } });
+    n++;
+  }
+  revalidatePath("/", "layout");
+  return { copied: n };
+}
+
 /** % planejado de uma pessoa no mês + alerta se a soma não fechar 100%. */
 export async function getAllocationsForUser(userId: string, year: number, month: number) {
   await requireSession();

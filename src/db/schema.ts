@@ -477,3 +477,49 @@ export const entityTax = pgTable("entity_tax", {
   nameUpper: text("name_upper").primaryKey(),
   taxId: text("tax_id").notNull(),
 });
+
+// --- Camada executiva (CEO/CFO): metas, iniciativas, settings -----------------
+
+/** Config chave-valor do grupo (ex.: caixa atual, data do caixa). */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Meta (OKR financeiro) por vertical/ano. */
+export const areaTargets = pgTable(
+  "area_targets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    areaId: uuid("area_id").references(() => areas.id, { onDelete: "cascade" }).notNull(),
+    year: integer("year").notNull(),
+    revenueTarget: numeric("revenue_target", { precision: 14, scale: 2 }).notNull().default("0"),
+    multiplierTarget: numeric("multiplier_target", { precision: 6, scale: 2 }).notNull().default("30"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("area_targets_unique_idx").on(t.areaId, t.year)]
+);
+
+export const initiativeStatusEnum = pgEnum("initiative_status", [
+  "ideacao",
+  "em_andamento",
+  "em_risco",
+  "concluida",
+  "pausada",
+]);
+
+/** Iniciativa estratégica (camada do board, acima de projetos). */
+export const initiatives = pgTable("initiatives", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  areaId: uuid("area_id").references(() => areas.id),
+  ownerId: uuid("owner_id").references(() => users.id),
+  status: initiativeStatusEnum("status").notNull().default("ideacao"),
+  nextMilestone: text("next_milestone"),
+  impact: text("impact"),
+  description: text("description"),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

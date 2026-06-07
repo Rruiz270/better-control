@@ -23,6 +23,9 @@ import {
   Car,
   LineChart,
   Scissors,
+  Gauge,
+  Rocket,
+  Target,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -33,11 +36,14 @@ import { signOut } from "next-auth/react";
 
 // Modo GESTÃO (operação) e modo FINANCEIRO (financeiro, só quem tem acesso).
 const GESTAO_NAV = [
+  { href: "/cockpit", label: "Cockpit", icon: Gauge, adminOnly: true },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/areas", label: "Áreas", icon: FolderKanban },
   { href: "/tasks", label: "Tarefas", icon: CheckSquare },
-  { href: "/reports", label: "Relatórios", icon: BarChart3 },
   { href: "/rateio", label: "Rateio", icon: PieChart },
+  { href: "/iniciativas", label: "Iniciativas", icon: Rocket },
+  { href: "/metas", label: "Metas & Caixa", icon: Target, adminOnly: true },
+  { href: "/reports", label: "Relatórios", icon: BarChart3 },
   { href: "/team", label: "Equipe", icon: Users },
   { href: "/settings/automations", label: "Automações", icon: Zap },
   { href: "/activity", label: "Atividade", icon: Activity },
@@ -47,6 +53,7 @@ const GESTAO_NAV = [
 ];
 
 const FINANCEIRO_NAV = [
+  { href: "/financeiro/cockpit", label: "Cockpit CFO", icon: Gauge },
   { href: "/financeiro", label: "Visão Geral", icon: BarChart3 },
   { href: "/financeiro/receitas", label: "Receitas", icon: TrendingUp },
   { href: "/financeiro/vendas", label: "Vendas", icon: Briefcase },
@@ -58,6 +65,7 @@ const FINANCEIRO_NAV = [
   { href: "/financeiro/veiculos", label: "Veículos", icon: Car },
   { href: "/financeiro/bizplan", label: "Bizplan", icon: LineChart },
   { href: "/financeiro/turnaround", label: "Turnaround", icon: Scissors },
+  { href: "/financeiro/unit-economics", label: "Unit Economics", icon: Target },
   { href: "/financeiro/centro-de-custo", label: "Centro de Custo", icon: PieChart },
   { href: "/despesas", label: "Despesas & Pessoas", icon: Receipt },
 ];
