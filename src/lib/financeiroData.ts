@@ -3,7 +3,7 @@
 // a integridade do banco do better-control é preservada. A coleta original fica
 // 100% intacta (só consumimos o resultado).
 import { db } from "@/db";
-import { expenses } from "@/db/schema";
+import { expenses, costCenters } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 const BASE = "https://www.institutoi10.com.br/better-financeiro";
@@ -14,6 +14,24 @@ async function fetchArray(file: string): Promise<Record<string, string | number>
   if (!r.ok) throw new Error(`fetch ${file} → ${r.status}`);
   const raw = await r.text();
   return JSON.parse(raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1));
+}
+
+// Extrai um array nomeado (arquivos com vários `var X = [...]`, ex.: bma_data.js).
+async function fetchNamedArray(file: string, varName: string): Promise<Record<string, string | number>[]> {
+  const r = await fetch(`${BASE}/${file}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`fetch ${file} → ${r.status}`);
+  const raw = await r.text();
+  const i = raw.indexOf(varName);
+  const start = raw.indexOf("[", i);
+  const end = raw.indexOf("]", start); // arrays flat (objetos sem arrays aninhados)
+  return JSON.parse(raw.slice(start, end + 1));
+}
+
+async function fetchObject(file: string): Promise<Record<string, unknown>> {
+  const r = await fetch(`${BASE}/${file}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`fetch ${file} → ${r.status}`);
+  const raw = await r.text();
+  return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
 }
 
 export type ReceitaData = {
@@ -47,6 +65,58 @@ export async function getReceitas(year: number): Promise<ReceitaData> {
   return { monthly, total, byClient: top(cli, 15), byCategoria: top(cat, 10) };
 }
 
+// --- BMA (folha) ---
+export type BMAData = { monthly: number[]; counts: number[]; total: number; headcountMax: number };
+export async function getBMA(year: number): Promise<BMAData> {
+  const rows = await fetchNamedArray("bma_data.js", "bmaDesp");
+  const monthly = Array(12).fill(0) as number[]; const counts = Array(12).fill(0) as number[];
+  for (const r of rows) {
+    const [mes, ano] = String(r.m).split("/");
+    if (Number(ano) !== year) continue;
+    const col = MES_TO_COL[mes]; if (!col) continue;
+    monthly[col - 1] = Number(r.total) || 0; counts[col - 1] = Number(r.count) || 0;
+  }
+  return { monthly, counts, total: monthly.reduce((s, v) => s + v, 0), headcountMax: Math.max(0, ...counts) };
+}
+
+// --- Veículos ---
+export type VeiculosData = { total: number; count: number; byFornecedor: { name: string; total: number }[]; monthly: number[] };
+export async function getVeiculos(year: number): Promise<VeiculosData> {
+  const rows = await fetchArray("veiculos_data.js");
+  let total = 0, count = 0; const forn = new Map<string, number>(); const monthly = Array(12).fill(0) as number[];
+  for (const r of rows) {
+    if (String(r.ano) !== String(year)) continue;
+    const v = Number(r.valor_pago) || 0; total += v; count++;
+    forn.set(String(r.fornecedor || "—"), (forn.get(String(r.fornecedor || "—")) ?? 0) + v);
+    const col = MES_TO_COL[String(r.mes).split("/")[0]]; if (col) monthly[col - 1] += v;
+  }
+  return { total, count, monthly, byFornecedor: [...forn.entries()].map(([name, t]) => ({ name, total: t })).sort((a, b) => b.total - a.total).slice(0, 12) };
+}
+
+// --- Bizplan (projeção mensal) ---
+export type BizplanRow = { m: string; subs: number; new_total: number; churn: number; receita: number; despesa: number; resultado: number; mrr: number; new_mrr: number; churn_mrr: number };
+export async function getBizplan(): Promise<BizplanRow[]> {
+  return (await fetchArray("bizplan_data.js")) as unknown as BizplanRow[];
+}
+
+// --- Turnaround (cenário) ---
+export type TurnaroundData = {
+  total_cuts: number; net_savings: number; despesa_atual: number; despesa_pos: number;
+  resultado_atual: number; resultado_pos: number;
+  cuts: { item: string; value: number }[]; new_costs: { item: string; value: number }[];
+};
+export async function getTurnaround(): Promise<TurnaroundData> {
+  const d = await fetchObject("turnaround_full_data.js");
+  const norm = (arr: unknown): { item: string; value: number }[] =>
+    Array.isArray(arr) ? arr.map((x) => ({ item: String((x as Record<string, unknown>).item ?? (x as Record<string, unknown>).nome ?? (x as Record<string, unknown>).label ?? "—"), value: Number((x as Record<string, unknown>).value ?? (x as Record<string, unknown>).valor ?? 0) || 0 })) : [];
+  return {
+    total_cuts: Number(d.total_cuts) || 0, net_savings: Number(d.net_savings) || 0,
+    despesa_atual: Number(d.despesa_atual) || 0, despesa_pos: Number(d.despesa_pos) || 0,
+    resultado_atual: Number(d.resultado_atual) || 0, resultado_pos: Number(d.resultado_pos) || 0,
+    cuts: norm(d.cuts), new_costs: norm(d.new_costs),
+  };
+}
+
 /** Despesa mensal DEDUPLICADA — vem da tabela `expenses` do better-control
  *  (já consolidada OMIE+BMA sem dupla contagem). Mantém tudo consistente. */
 export async function getDespesaMensal(year: number): Promise<number[]> {
@@ -54,6 +124,29 @@ export async function getDespesaMensal(year: number): Promise<number[]> {
   const monthly = Array(12).fill(0) as number[];
   for (const r of rows) if (r.month >= 1 && r.month <= 12) monthly[r.month - 1] += Number(r.value);
   return monthly;
+}
+
+// --- Contabilidade (folha BMA + obrigações: tributos/contábil/jurídico) ---
+export type ContabilidadeData = {
+  folha: number[]; folhaTotal: number;
+  obrigacoes: { name: string; total: number }[];
+};
+export async function getContabilidade(year: number): Promise<ContabilidadeData> {
+  const bma = await getBMA(year);
+  const ccs = await db.select().from(costCenters);
+  const wanted = new Set(["Serv. Terceiro - Contábil", "Serv. Terceiro - Jurídico", "Tributos e Taxas"]);
+  const wantedIds = new Map(ccs.filter((c) => wanted.has(c.name)).map((c) => [c.id, c.name]));
+  const rows = await db.select().from(expenses).where(eq(expenses.year, year));
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.costCenterId || !wantedIds.has(r.costCenterId)) continue;
+    const name = wantedIds.get(r.costCenterId)!;
+    m.set(name, (m.get(name) ?? 0) + Number(r.value));
+  }
+  return {
+    folha: bma.monthly, folhaTotal: bma.total,
+    obrigacoes: [...m.entries()].map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total),
+  };
 }
 
 const truthy = (v: unknown) => v === true || v === 1 || v === "true" || v === "Sim" || v === "sim";
