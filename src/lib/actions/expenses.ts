@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { expenses, costCenters, supplierCostCenter, areas } from "@/db/schema";
+import { expenses, costCenters, supplierCostCenter, areas, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireFinanceiroAccess } from "@/lib/authorization";
@@ -49,6 +49,35 @@ export async function getCostCenterDashboard(year: number) {
     .sort((a, b) => b.total - a.total);
 
   return { centers, verticais, total, unassignedCC: byCC.get(null)?.total ?? 0, unassignedArea: byArea.get(null) ?? 0 };
+}
+
+/** P&L por vertical com OVERHEAD (despesas sem vertical = compartilhado) rateado
+ *  por headcount (nº de pessoas por área). */
+export async function getVerticalPL(year: number) {
+  await assertFinanceiro();
+  const rows = await db.select().from(expenses).where(eq(expenses.year, year));
+  const ars = await db.select().from(areas);
+  const us = await db.select({ areaId: users.areaId }).from(users);
+
+  const direct = new Map<string, number>();
+  let overhead = 0;
+  for (const r of rows) {
+    const v = Number(r.value);
+    if (r.areaId) direct.set(r.areaId, (direct.get(r.areaId) ?? 0) + v);
+    else overhead += v; // sem vertical = pool compartilhado
+  }
+  const headcount = new Map<string, number>();
+  for (const u of us) if (u.areaId) headcount.set(u.areaId, (headcount.get(u.areaId) ?? 0) + 1);
+  const totalHead = [...headcount.values()].reduce((s, n) => s + n, 0) || 1;
+
+  const verticais = ars.map((a) => {
+    const d = direct.get(a.id) ?? 0;
+    const hc = headcount.get(a.id) ?? 0;
+    const allocated = overhead * (hc / totalHead);
+    return { id: a.id, name: a.name, color: a.color, headcount: hc, direct: d, allocated, total: d + allocated };
+  }).sort((x, y) => y.total - x.total);
+
+  return { verticais, overhead, totalHead };
 }
 
 export type SupplierRow = {

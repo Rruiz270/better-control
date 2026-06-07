@@ -1,17 +1,17 @@
 export const dynamic = "force-dynamic";
 
 import Header from "@/components/layout/Header";
-import { getCostCenterDashboard } from "@/lib/actions/expenses";
-import { PieChart, Wallet, AlertTriangle } from "lucide-react";
+import { getCostCenterDashboard, getVerticalPL } from "@/lib/actions/expenses";
+import { PieChart, Wallet, AlertTriangle, Users } from "lucide-react";
 
 const brl = (n: number) => `R$ ${Math.round(n).toLocaleString("pt-BR")}`;
 
 export default async function CentroDeCustoPage() {
   const year = new Date().getFullYear();
 
-  let data;
+  let data, pl;
   try {
-    data = await getCostCenterDashboard(year);
+    [data, pl] = await Promise.all([getCostCenterDashboard(year), getVerticalPL(year)]);
   } catch {
     return (
       <div className="min-h-screen">
@@ -54,9 +54,37 @@ export default async function CentroDeCustoPage() {
           </div>
         </div>
 
+        {/* P&L por vertical com overhead rateado por headcount */}
+        <section>
+          <h2 className="text-lg font-bold text-navy mb-3 flex items-center gap-2">
+            <Users size={18} /> Custo por vertical (overhead rateado por headcount)
+          </h2>
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase">
+              <span className="col-span-4">Vertical</span>
+              <span className="col-span-2 text-center">Pessoas</span>
+              <span className="col-span-2 text-right">Custo direto</span>
+              <span className="col-span-2 text-right">Overhead</span>
+              <span className="col-span-2 text-right">Total</span>
+            </div>
+            {pl.verticais.map((v) => (
+              <div key={v.id} className="grid grid-cols-2 md:grid-cols-12 gap-2 px-4 py-2.5 items-center border-b border-gray-50 last:border-0">
+                <span className="col-span-4 flex items-center gap-2 text-sm text-navy"><span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: v.color }} />{v.name}</span>
+                <span className="col-span-2 text-center text-sm text-gray-500">{v.headcount}</span>
+                <span className="col-span-2 text-right text-sm text-navy tnum">{brl(v.direct)}</span>
+                <span className="col-span-2 text-right text-sm text-amber-600 tnum">+{brl(v.allocated)}</span>
+                <span className="col-span-2 text-right text-sm font-bold text-navy tnum">{brl(v.total)}</span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">
+            Overhead (despesas sem vertical = compartilhado): <strong>{brl(pl.overhead)}</strong> rateado por nº de pessoas ({pl.totalHead} no total).
+          </p>
+        </section>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <section>
-            <h2 className="text-lg font-bold text-navy mb-3">Por vertical</h2>
+            <h2 className="text-lg font-bold text-navy mb-3">Por vertical (direto)</h2>
             <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-3">
               {data.verticais.map((c) => (
                 <div key={c.id ?? "none"} className="space-y-1">
