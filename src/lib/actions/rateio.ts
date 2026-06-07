@@ -201,6 +201,7 @@ export async function copyAllocationsFromPreviousMonth(userId: string, year: num
   const session = await requireSession();
   const user = session.user as SessionUser;
   if (!isAdmin(user)) {
+    if (user.role !== "head") throw new AuthorizationError("Somente heads e admins lançam rateio.");
     const editable = await editablePeopleFor(user);
     if (editable && !editable.has(userId)) throw new AuthorizationError("Fora do seu escopo.");
   }

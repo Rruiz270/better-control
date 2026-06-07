@@ -60,12 +60,20 @@ export async function editablePeopleFor(
     .from(users);
   const set = new Set<string>([user.id]);
 
-  // áreas que o usuário lidera → todos dessas áreas
-  const headed = await db.select({ id: areas.id }).from(areas).where(eq(areas.headId, user.id));
-  const headedAreas = new Set(headed.map((a) => a.id));
-  for (const u of all) if (u.areaId && headedAreas.has(u.areaId)) set.add(u.id);
+  // HEAD → vê/preenche TODOS da(s) sua(s) área(s). Por PERTENCIMENTO de área
+  // (user_areas + área primária), não por areas.headId — assim "Gustavo Head
+  // Idiomas" enxerga todos de Idiomas mesmo sem headId setado. Inclui também
+  // áreas onde ele é o head designado (areas.headId), por compatibilidade.
+  if (user.role === "head") {
+    const myAreas = new Set(await userAreaIds(user.id));
+    const headed = await db.select({ id: areas.id }).from(areas).where(eq(areas.headId, user.id));
+    for (const a of headed) myAreas.add(a.id);
+    const ua = await db.select().from(userAreas);
+    for (const u of all) if (u.areaId && myAreas.has(u.areaId)) set.add(u.id);
+    for (const r of ua) if (myAreas.has(r.areaId)) set.add(r.userId);
+  }
 
-  // subárvore de reportes (BFS sobre managerId)
+  // subárvore de reportes (BFS sobre managerId) — vale p/ head e sub-head
   const childrenOf = new Map<string, string[]>();
   for (const u of all) if (u.managerId) {
     const arr = childrenOf.get(u.managerId) ?? [];
@@ -167,10 +175,11 @@ export async function requireAreaAccess(
   const user = session.user as SessionUser;
   if (isAdmin(user)) return session;
   const inArea = (await userAreaIds(user.id)).includes(areaId);
-  // contribuir: head OU member da área; gerenciar estrutura: só head da área.
-  const allowed = contributor
-    ? inArea && (user.role === "head" || user.role === "member")
-    : inArea && user.role === "head";
+  // POLÍTICA ATUAL: member = SOMENTE LEITURA (vê, mas não mexe em nada). Só head
+  // da área (e admin) escrevem — tanto estrutura quanto contribuições. O flag
+  // `contributor` fica mantido p/ compat futura (reabrir member sem mudar callers).
+  void contributor;
+  const allowed = inArea && user.role === "head";
   if (!allowed) throw new AuthorizationError();
   return session;
 }
