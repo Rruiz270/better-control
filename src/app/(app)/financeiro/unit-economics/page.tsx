@@ -10,7 +10,7 @@ export default async function UnitEconomicsPage() {
   const year = new Date().getFullYear();
   let d;
   try { d = await getUnitEconomics(year); } catch {
-    return <div className="min-h-screen"><Header title="Financeiro · Unit Economics" /><p className="p-8 text-sm text-gray-400 text-center">Sem acesso ao Modo Financeiro.</p></div>;
+    return <div className="min-h-screen"><Header title="Financeiro · Unit Economics" /><p className="p-8 text-sm text-gray-400 text-center">Please contact admin</p></div>;
   }
   const maxMod = Math.max(1, ...d.byModalidade.map((m) => m.count));
 

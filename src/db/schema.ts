@@ -478,6 +478,18 @@ export const entityTax = pgTable("entity_tax", {
   taxId: text("tax_id").notNull(),
 });
 
+/** Pertencimento multi-área (uma pessoa pode estar em >1 vertical). users.areaId
+ * segue como área PRIMÁRIA (compat); user_areas são todas as áreas que a pessoa
+ * vê/preenche. */
+export const userAreas = pgTable(
+  "user_areas",
+  {
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+    areaId: uuid("area_id").references(() => areas.id, { onDelete: "cascade" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.areaId] })]
+);
+
 // --- Camada executiva (CEO/CFO): metas, iniciativas, settings -----------------
 
 /** Config chave-valor do grupo (ex.: caixa atual, data do caixa). */

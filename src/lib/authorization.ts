@@ -1,12 +1,11 @@
 import { auth } from "./auth";
 import { db } from "@/db";
-import { projects, tasks, kpis, automationRules, notes, users, areas } from "@/db/schema";
+import { projects, tasks, kpis, automationRules, notes, users, areas, userAreas } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import {
   AuthorizationError,
-  canContributeToArea,
+  isAdmin,
   canManageArea,
-  canViewArea,
   type SessionUser,
 } from "./policy";
 
@@ -85,10 +84,21 @@ export async function editablePeopleFor(
 
 export async function requireFinanceiroAccess() {
   const session = await requireSession();
-  if (!(await hasFinanceiroAccess(session.user.id))) {
-    throw new AuthorizationError("Sem acesso ao Modo Financeiro.");
+  // Por enquanto, só ADMIN acessa o Financeiro. Heads/members veem a aba mas
+  // são bloqueados (mensagem "Please contact admin"). hasFinanceiroAccess fica
+  // disponível p/ liberar pessoas específicas no futuro sem ser admin.
+  if (!isAdmin(session.user as SessionUser) && !(await hasFinanceiroAccess(session.user.id))) {
+    throw new AuthorizationError("Please contact admin");
   }
   return session;
+}
+
+/** Todas as áreas da pessoa (multi-área). Fallback p/ a área primária (users.areaId). */
+export async function userAreaIds(userId: string): Promise<string[]> {
+  const rows = await db.select({ areaId: userAreas.areaId }).from(userAreas).where(eq(userAreas.userId, userId));
+  if (rows.length) return rows.map((r) => r.areaId);
+  const [u] = await db.select({ areaId: users.areaId }).from(users).where(eq(users.id, userId)).limit(1);
+  return u?.areaId ? [u.areaId] : [];
 }
 
 // --- DB-backed area resolvers ------------------------------------------------
@@ -131,7 +141,8 @@ export async function requireProjectView(projectId: string) {
   const session = await requireSession();
   const areaId = await areaIdForProject(projectId);
   if (!areaId) throw new AuthorizationError("Projeto não encontrado.");
-  if (!canViewArea(session.user as SessionUser, areaId)) throw new AuthorizationError();
+  const user = session.user as SessionUser;
+  if (!isAdmin(user) && !(await userAreaIds(user.id)).includes(areaId)) throw new AuthorizationError();
   return session;
 }
 
@@ -139,7 +150,8 @@ export async function requireTaskView(taskId: string) {
   const session = await requireSession();
   const row = await areaIdForTask(taskId);
   if (!row) throw new AuthorizationError("Tarefa não encontrada.");
-  if (!canViewArea(session.user as SessionUser, row.areaId)) throw new AuthorizationError();
+  const user = session.user as SessionUser;
+  if (!isAdmin(user) && !(await userAreaIds(user.id)).includes(row.areaId)) throw new AuthorizationError();
   return session;
 }
 
@@ -153,9 +165,12 @@ export async function requireAreaAccess(
 ) {
   const session = await requireSession();
   const user = session.user as SessionUser;
+  if (isAdmin(user)) return session;
+  const inArea = (await userAreaIds(user.id)).includes(areaId);
+  // contribuir: head OU member da área; gerenciar estrutura: só head da área.
   const allowed = contributor
-    ? canContributeToArea(user, areaId)
-    : canManageArea(user, areaId);
+    ? inArea && (user.role === "head" || user.role === "member")
+    : inArea && user.role === "head";
   if (!allowed) throw new AuthorizationError();
   return session;
 }

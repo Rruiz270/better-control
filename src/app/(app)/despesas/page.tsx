@@ -19,7 +19,7 @@ export default async function DespesasPage() {
       <div className="min-h-screen">
         <Header title="Despesas & Pessoas" />
         <p className="p-8 text-sm text-gray-400 text-center">
-          Você não tem acesso ao Modo Financeiro.
+          Please contact admin
         </p>
       </div>
     );

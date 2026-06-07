@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus, Save, KeyRound, Loader2, Check, X } from "lucide-react";
-import { createUser, updateUser, resetUserPassword } from "@/lib/actions/users";
+import { createUser, updateUser, resetUserPassword, setUserAreas } from "@/lib/actions/users";
 
 type Role = "admin" | "head" | "member";
 type User = {
@@ -13,6 +13,7 @@ type User = {
   role: Role;
   areaId: string | null;
   areaName: string | null;
+  areaIds: string[];
 };
 type Area = { id: string; name: string };
 
@@ -29,17 +30,22 @@ function UserRow({ user, areas }: { user: User; areas: Area[] }) {
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState<Role>(user.role);
-  const [areaId, setAreaId] = useState<string>(user.areaId ?? "");
+  const [areaSel, setAreaSel] = useState<Set<string>>(new Set(user.areaIds));
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [newPw, setNewPw] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const dirty =
-    name !== user.name || email !== user.email || role !== user.role || (areaId || null) !== user.areaId;
+  const areasChanged = JSON.stringify([...areaSel].sort()) !== JSON.stringify([...user.areaIds].sort());
+  const dirty = name !== user.name || email !== user.email || role !== user.role || areasChanged;
+
+  function toggleArea(id: string) {
+    setAreaSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
 
   function save() {
     startTransition(async () => {
-      const r = await updateUser(user.id, { name, email, role, areaId: areaId || null });
+      const r = await updateUser(user.id, { name, email, role });
+      if (r.ok && areasChanged) await setUserAreas(user.id, [...areaSel]);
       setMsg(r.ok ? { text: "Salvo", ok: true } : { text: r.error ?? "Erro", ok: false });
       if (r.ok) router.refresh();
       setTimeout(() => setMsg(null), 2500);
@@ -79,18 +85,6 @@ function UserRow({ user, areas }: { user: User; areas: Area[] }) {
           <option value="head">Head</option>
           <option value="member">Membro</option>
         </select>
-        <select
-          value={areaId}
-          onChange={(e) => setAreaId(e.target.value)}
-          className="px-2 py-1.5 rounded-lg border border-gray-200 text-sm"
-        >
-          <option value="">— sem área —</option>
-          {areas.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
         <button
           onClick={save}
           disabled={!dirty || isPending}
@@ -106,6 +100,15 @@ function UserRow({ user, areas }: { user: User; areas: Area[] }) {
         >
           <KeyRound size={12} /> Senha
         </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-bold text-gray-400 uppercase">Áreas:</span>
+        {areas.map((a) => (
+          <label key={a.id} className={`text-xs px-2 py-1 rounded-lg border cursor-pointer ${areaSel.has(a.id) ? "bg-cyan/15 border-cyan/40 text-navy font-medium" : "border-gray-200 text-gray-500"}`}>
+            <input type="checkbox" className="mr-1 align-middle" checked={areaSel.has(a.id)} onChange={() => toggleArea(a.id)} />{a.name}
+          </label>
+        ))}
+        {role === "admin" && <span className="text-[10px] text-gray-400">(admin vê tudo)</span>}
       </div>
       {msg && (
         <p className={`text-xs flex items-center gap-1 ${msg.ok ? "text-green" : "text-red-500"}`}>

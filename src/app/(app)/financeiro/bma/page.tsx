@@ -11,7 +11,7 @@ export default async function BMAPage() {
   const year = new Date().getFullYear();
   let d;
   try { d = await getBMAView(year); } catch {
-    return <div className="min-h-screen"><Header title="Financeiro · BMA" /><p className="p-8 text-sm text-gray-400 text-center">Sem acesso ao Modo Financeiro.</p></div>;
+    return <div className="min-h-screen"><Header title="Financeiro · BMA" /><p className="p-8 text-sm text-gray-400 text-center">Please contact admin</p></div>;
   }
   const max = Math.max(1, ...d.monthly);
   const months = MN.map((_, i) => i).filter((i) => d.monthly[i]);

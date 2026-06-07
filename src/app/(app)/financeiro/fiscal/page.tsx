@@ -16,7 +16,7 @@ export default async function FiscalPage() {
     return (
       <div className="min-h-screen">
         <Header title="Financeiro · Fiscal" />
-        <p className="p-8 text-sm text-gray-400 text-center">Você não tem acesso ao Modo Financeiro.</p>
+        <p className="p-8 text-sm text-gray-400 text-center">Please contact admin</p>
       </div>
     );
   }

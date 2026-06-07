@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { users, areas } from "@/db/schema";
+import { users, areas, userAreas } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
@@ -24,7 +24,7 @@ async function requireAdmin() {
 
 export async function listUsers() {
   await requireAdmin();
-  return db
+  const rows = await db
     .select({
       id: users.id,
       name: users.name,
@@ -36,6 +36,21 @@ export async function listUsers() {
     .from(users)
     .leftJoin(areas, eq(users.areaId, areas.id))
     .orderBy(users.name);
+  // multi-área: anexa todas as áreas de cada usuário (fallback p/ a primária)
+  const ua = await db.select().from(userAreas);
+  const byUser = new Map<string, string[]>();
+  for (const r of ua) byUser.set(r.userId, [...(byUser.get(r.userId) ?? []), r.areaId]);
+  return rows.map((u) => ({ ...u, areaIds: byUser.get(u.id) ?? (u.areaId ? [u.areaId] : []) }));
+}
+
+/** Define as áreas (multi) de um usuário; primária = primeira da lista. */
+export async function setUserAreas(userId: string, areaIds: string[]): Promise<{ ok: boolean }> {
+  await requireAdmin();
+  await db.delete(userAreas).where(eq(userAreas.userId, userId));
+  if (areaIds.length) await db.insert(userAreas).values(areaIds.map((areaId) => ({ userId, areaId })));
+  await db.update(users).set({ areaId: areaIds[0] ?? null, updatedAt: new Date() }).where(eq(users.id, userId));
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
 
 export async function createUser(data: {

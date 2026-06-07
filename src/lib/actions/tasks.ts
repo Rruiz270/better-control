@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { tasks, taskAssignees, users, activityLog, projects } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { evaluateRules } from "./automations";
 import { revalidatePath } from "next/cache";
 import {
@@ -11,6 +11,7 @@ import {
   requireProjectAccess,
   requireTaskAccess,
   isAdmin,
+  userAreaIds,
   AuthorizationError,
   type SessionUser,
 } from "@/lib/authorization";
@@ -204,9 +205,10 @@ export async function getAllTasks() {
     .innerJoin(areas, eq(projects.areaId, areas.id))
     .orderBy(desc(tasks.createdAt));
 
-  // Escopo por permissão: admin vê tudo; head/member só a própria área.
+  // Escopo por permissão: admin vê tudo; head/member as suas áreas (multi-área).
   if (user.role === "admin") return allTasks;
-  return allTasks.filter((t) => t.areaId === user.areaId);
+  const areaIds = new Set(await userAreaIds(user.id));
+  return allTasks.filter((t) => t.areaId && areaIds.has(t.areaId));
 }
 
 /** Projetos + pessoas que o usuário pode usar ao criar tarefas (escopo por área). */
@@ -214,18 +216,19 @@ export async function getTaskTargets() {
   const session = await requireSession();
   const user = session.user as SessionUser;
   const { projects, areas, users } = await import("@/db/schema");
-  const scoped = user.role !== "admin";
+  const areaIds = user.role === "admin" ? null : await userAreaIds(user.id);
+  const scope = areaIds && areaIds.length ? areaIds : ["__none__"];
 
   const projectRows = await db
     .select({ id: projects.id, name: projects.name, areaId: projects.areaId, areaName: areas.name })
     .from(projects)
     .innerJoin(areas, eq(projects.areaId, areas.id))
-    .where(scoped ? eq(projects.areaId, user.areaId ?? "__none__") : undefined);
+    .where(areaIds ? inArray(projects.areaId, scope) : undefined);
 
   const userRows = await db
     .select({ id: users.id, name: users.name, areaId: users.areaId })
     .from(users)
-    .where(scoped ? eq(users.areaId, user.areaId ?? "__none__") : undefined);
+    .where(areaIds ? inArray(users.areaId, scope) : undefined);
 
   return { projects: projectRows, users: userRows };
 }

@@ -11,7 +11,7 @@ export default async function ContabilidadePage() {
   const year = new Date().getFullYear();
   let d;
   try { d = await getContabilidadeView(year); } catch {
-    return <div className="min-h-screen"><Header title="Financeiro · Contabilidade" /><p className="p-8 text-sm text-gray-400 text-center">Sem acesso ao Modo Financeiro.</p></div>;
+    return <div className="min-h-screen"><Header title="Financeiro · Contabilidade" /><p className="p-8 text-sm text-gray-400 text-center">Please contact admin</p></div>;
   }
   const max = Math.max(1, ...d.folha);
   const months = MN.map((_, i) => i).filter((i) => d.folha[i]);

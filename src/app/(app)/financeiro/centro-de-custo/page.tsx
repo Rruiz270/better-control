@@ -17,7 +17,7 @@ export default async function CentroDeCustoPage() {
       <div className="min-h-screen">
         <Header title="Financeiro · Centro de Custo" />
         <p className="p-8 text-sm text-gray-400 text-center">
-          Você não tem acesso ao Modo Financeiro.
+          Please contact admin
         </p>
       </div>
     );

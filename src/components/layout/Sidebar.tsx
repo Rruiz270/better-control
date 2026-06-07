@@ -76,17 +76,16 @@ const FINANCEIRO_PREFIXES = ["/financeiro", "/despesas"];
 export default function Sidebar({
   userName,
   userRole,
-  financeiroAccess,
 }: {
   userName: string;
   userRole: string;
-  financeiroAccess: boolean;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
+  // Todos veem o seletor Financeiro; o acesso é controlado na página (admin).
   const inFinanceiro = FINANCEIRO_PREFIXES.some((p) => pathname.startsWith(p));
-  const mode: "financeiro" | "gestao" = inFinanceiro && financeiroAccess ? "financeiro" : "gestao";
+  const mode: "financeiro" | "gestao" = inFinanceiro ? "financeiro" : "gestao";
   const navItems = mode === "financeiro" ? FINANCEIRO_NAV : GESTAO_NAV;
 
   return (
@@ -111,8 +110,8 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Seletor de modo (Financeiro só p/ quem tem acesso) */}
-      {financeiroAccess && !collapsed && (
+      {/* Seletor de modo — visível a todos; Financeiro é gated na página (admin) */}
+      {!collapsed && (
         <div className="flex gap-1 mx-2 mt-3 p-1 rounded-lg bg-white/5">
           <Link
             href="/dashboard"
