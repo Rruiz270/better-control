@@ -102,7 +102,7 @@ export default function ExpenseLedger({
           <span className="col-span-3">Categoria</span>
         </div>
         {filtered.map((r, i) => (
-          <div key={r.entityKey} className={`grid grid-cols-2 md:grid-cols-12 gap-2 px-4 py-2.5 items-center ${i < filtered.length - 1 ? "border-b border-gray-50" : ""}`}>
+          <div key={r.entityKey} className={`grid grid-cols-1 md:grid-cols-12 gap-2 px-4 py-2.5 md:items-center ${i < filtered.length - 1 ? "border-b border-gray-50" : ""}`}>
             <div className="col-span-5 flex items-center gap-2 min-w-0">
               {r.kind === "pessoa" ? <Users size={14} className="text-cyan flex-shrink-0" /> : <Package size={14} className="text-gray-300 flex-shrink-0" />}
               <span className="text-sm text-navy truncate">{r.name}</span>
