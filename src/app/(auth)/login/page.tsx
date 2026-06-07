@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AuthError } from "next-auth";
 import { signIn } from "@/lib/auth";
 
@@ -91,6 +92,12 @@ export default async function LoginPage({
           >
             Entrar
           </button>
+
+          <p className="text-center text-xs text-gray-500 pt-1">
+            Não tem conta?{" "}
+            <Link href="/register" className="font-bold text-cyan">Cadastre-se</Link>
+            <span className="block text-gray-400 mt-1">Seu acesso é liberado após aprovação de um admin.</span>
+          </p>
         </form>
       </div>
     </div>

@@ -106,35 +106,33 @@ export async function updateUser(
   return { ok: true };
 }
 
-// --- Onboarding: convite → setup (público) → aprovação → boas-vindas ----------
+// --- Onboarding: auto-cadastro (público) → aprovação do admin → boas-vindas ----
 
-/** Admin cria um convite: usuário "invited" com token. Retorna o link de setup. */
-export async function createInvite(data: { name: string; role: Role; areaIds: string[] }): Promise<{ ok: boolean; link?: string; error?: string }> {
-  await requireAdmin();
-  if (!data.name.trim()) return { ok: false, error: "Nome é obrigatório." };
-  const token = crypto.randomUUID().replace(/-/g, "");
-  const passwordHash = await hash(crypto.randomUUID(), 12); // placeholder até o setup
+/** PÚBLICO (na tela de login): a pessoa se cadastra. Fica "pending" até um admin
+ * aprovar. Não pode se autodeclarar admin. */
+export async function registerUser(data: {
+  name: string; email: string; phone?: string; password: string;
+  role: "head" | "member"; areaId?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const mail = data.email.trim().toLowerCase();
+  if (!data.name.trim() || !mail || data.password.length < 6) {
+    return { ok: false, error: "Nome, email e senha (mín. 6) são obrigatórios." };
+  }
+  const role: Role = data.role === "head" ? "head" : "member"; // nunca admin via cadastro
+  const [clash] = await db.select({ id: users.id }).from(users).where(eq(users.email, mail)).limit(1);
+  if (clash) return { ok: false, error: "Já existe um cadastro com este email." };
+  const passwordHash = await hash(data.password, 12);
   const [u] = await db.insert(users).values({
-    name: data.name.trim(), email: `invite-${token}@pending.local`, passwordHash,
-    role: data.role, areaId: data.areaIds[0] ?? null, status: "invited", inviteToken: token,
+    name: data.name.trim(), email: mail, phone: data.phone?.trim() || null, passwordHash,
+    role, areaId: data.areaId ?? null, status: "pending",
   }).returning({ id: users.id });
-  if (data.areaIds.length) await db.insert(userAreas).values(data.areaIds.map((areaId) => ({ userId: u.id, areaId })));
-  revalidatePath("/", "layout");
-  return { ok: true, link: `/better-control/setup?token=${token}` };
+  if (data.areaId) await db.insert(userAreas).values({ userId: u.id, areaId: data.areaId });
+  return { ok: true };
 }
 
-/** PÚBLICO (sem login): a pessoa convidada define email real + senha. Token é a chave. */
-export async function completeSetup(token: string, email: string, password: string): Promise<{ ok: boolean; error?: string }> {
-  if (!token) return { ok: false, error: "Convite inválido." };
-  const mail = email.trim().toLowerCase();
-  if (!mail || password.length < 6) return { ok: false, error: "Email e senha (mín. 6) obrigatórios." };
-  const [inv] = await db.select().from(users).where(eq(users.inviteToken, token)).limit(1);
-  if (!inv || inv.status !== "invited") return { ok: false, error: "Convite inválido ou já usado." };
-  const [clash] = await db.select({ id: users.id }).from(users).where(eq(users.email, mail)).limit(1);
-  if (clash && clash.id !== inv.id) return { ok: false, error: "Email já cadastrado." };
-  const passwordHash = await hash(password, 12);
-  await db.update(users).set({ email: mail, passwordHash, status: "pending", inviteToken: null, updatedAt: new Date() }).where(eq(users.id, inv.id));
-  return { ok: true };
+/** Áreas (id+nome) p/ o dropdown público de cadastro. */
+export async function listAreasPublic() {
+  return db.select({ id: areas.id, name: areas.name }).from(areas).orderBy(areas.name);
 }
 
 /** Admin aprova um usuário pendente → vira active e recebe boas-vindas. */
