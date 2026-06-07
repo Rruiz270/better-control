@@ -98,6 +98,53 @@ export type VendasData = {
   recEsperado: number; recPago: number; recFalta: number;
 };
 
+export type NotasData = {
+  total: number; comNota: number; semNota: number; chargeback: number; refund: number;
+  problemas: { nome: string; doc: string; chargeback: number; refund: number }[];
+};
+
+/** Notas fiscais / status de pagamento por cliente (com nota × sem nota,
+ *  chargebacks e refunds). Cumulativo. */
+export async function getNotas(): Promise<NotasData> {
+  const rows = await fetchArray("notas_data.js");
+  let total = 0, comNota = 0, semNota = 0, chargeback = 0, refund = 0;
+  const problemas: { nome: string; doc: string; chargeback: number; refund: number }[] = [];
+  for (const r of rows) {
+    total += Number(r.tot) || 0;
+    comNota += Number(r.pv) || 0;
+    semNota += Number(r.sv) || 0;
+    const cb = Number(r.ct) || 0, rf = Number(r.rt) || 0;
+    chargeback += cb; refund += rf;
+    if (cb > 0 || rf > 0) problemas.push({ nome: String(r.n || "—"), doc: String(r.d || ""), chargeback: cb, refund: rf });
+  }
+  problemas.sort((a, b) => (b.chargeback + b.refund) - (a.chargeback + a.refund));
+  return { total, comNota, semNota, chargeback, refund, problemas: problemas.slice(0, 20) };
+}
+
+export type FiscalData = {
+  nfse: number[]; nfseN: number[]; nfe: number[]; nfeN: number[];
+  totalNfse: number; totalNfe: number; countNfse: number; countNfe: number;
+};
+
+/** Emissão fiscal: NFS-e (serviço) + NF-e (produto) por mês (dashboard_data). */
+export async function getFiscal(year: number): Promise<FiscalData> {
+  const rows = await fetchArray("dashboard_data.js");
+  const nfse = Array(12).fill(0) as number[]; const nfseN = Array(12).fill(0) as number[];
+  const nfe = Array(12).fill(0) as number[]; const nfeN = Array(12).fill(0) as number[];
+  for (const r of rows) {
+    if (String(r.y) !== String(year)) continue;
+    const col = MES_TO_COL[String(r.m).split("/")[0]];
+    if (!col) continue;
+    nfse[col - 1] = Number(r.nfse) || 0; nfseN[col - 1] = Number(r.nfse_n) || 0;
+    nfe[col - 1] = Number(r.nfe) || 0; nfeN[col - 1] = Number(r.nfe_n) || 0;
+  }
+  return {
+    nfse, nfseN, nfe, nfeN,
+    totalNfse: nfse.reduce((s, v) => s + v, 0), totalNfe: nfe.reduce((s, v) => s + v, 0),
+    countNfse: nfseN.reduce((s, v) => s + v, 0), countNfe: nfeN.reduce((s, v) => s + v, 0),
+  };
+}
+
 /** Vendas/contratos (B2B CNPJ + B2C CPF), com cobrança. Cumulativo. */
 export async function getVendas(): Promise<VendasData> {
   const rows = await fetchArray("vendas_cross_data.js");

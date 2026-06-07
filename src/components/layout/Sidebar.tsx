@@ -17,6 +17,8 @@ import {
   TrendingUp,
   Briefcase,
   GraduationCap,
+  FileText,
+  FileCheck,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -45,6 +47,8 @@ const FINANCEIRO_NAV = [
   { href: "/financeiro/receitas", label: "Receitas", icon: TrendingUp },
   { href: "/financeiro/vendas", label: "Vendas", icon: Briefcase },
   { href: "/financeiro/alunos", label: "Alunos", icon: GraduationCap },
+  { href: "/financeiro/notas", label: "Notas Fiscais", icon: FileText },
+  { href: "/financeiro/fiscal", label: "Fiscal", icon: FileCheck },
   { href: "/financeiro/centro-de-custo", label: "Centro de Custo", icon: PieChart },
   { href: "/despesas", label: "Despesas & Pessoas", icon: Receipt },
 ];
