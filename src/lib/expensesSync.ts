@@ -3,8 +3,9 @@
 // faz upsert em `expenses`. Sem credencial. Usado pela rota de cron e por triggers
 // manuais. Upsert em lote (poucos statements) p/ caber no tempo do serverless.
 import { db } from "@/db";
-import { expenses, supplierCostCenter, entityTax } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { expenses, supplierCostCenter, entityTax, areas, financialPlans } from "@/db/schema";
+import { sql, and, eq } from "drizzle-orm";
+import { getReceitas } from "@/lib/financeiroData";
 
 const BASE = "https://www.institutoi10.com.br/better-financeiro";
 const DESP_URL = `${BASE}/despesas_all_data.js`;
@@ -89,5 +90,32 @@ export async function runExpensesSync(year = 2026): Promise<{ count: number; tot
     });
   }
 
+  // 6) atualiza os ACTUALS de Idiomas (financial_plans) que alimentam cockpits/DRE:
+  //    receita = Vindi (live) por mês; custo = despesas (dedup) por mês. i10 = manual.
+  await syncIdiomasActuals(year, values);
+
   return { count: values.length, total: values.reduce((s, e) => s + Number(e.value), 0) };
+}
+
+async function syncIdiomasActuals(year: number, expValues: { month: number; value: string }[]) {
+  const [idiomas] = await db.select({ id: areas.id }).from(areas).where(eq(areas.slug, "idiomas")).limit(1);
+  if (!idiomas) return;
+  // custo mensal (a partir das despesas recém-sincronizadas)
+  const custo = Array(12).fill(0) as number[];
+  for (const e of expValues) if (e.month >= 1 && e.month <= 12) custo[e.month - 1] += Number(e.value);
+  // receita mensal (Vindi, live)
+  let receita = Array(12).fill(0) as number[];
+  try { receita = (await getReceitas(year)).monthly; } catch { /* mantém zeros se a fonte falhar */ }
+
+  const fields = (arr: number[]) => Object.fromEntries(arr.map((v, i) => [`m${i + 1}`, String(Math.round(v))]));
+  for (const [stream, arr] of [["receita", receita], ["custo", custo]] as const) {
+    const f = fields(arr);
+    await db.insert(financialPlans)
+      .values({ entityType: "area", entityId: idiomas.id, year, stream, metric: "actual", ...f } as typeof financialPlans.$inferInsert)
+      .onConflictDoUpdate({
+        target: [financialPlans.entityType, financialPlans.entityId, financialPlans.year, financialPlans.stream, financialPlans.metric],
+        set: { ...f, updatedAt: new Date() },
+      });
+  }
+  void and;
 }
