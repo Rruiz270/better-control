@@ -11,6 +11,7 @@ import {
   areas,
   activityLog,
   expenses,
+  costCenters,
 } from "@/db/schema";
 import { and, eq, gte, lt, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -298,11 +299,25 @@ export async function getRateioRollup(
     .where(and(eq(collaboratorCost.year, year), eq(collaboratorCost.month, month)));
   const manualByUser = new Map(costs.map((c) => [c.userId, Number(c.monthlyCost)]));
 
-  // Custo real do mês, agregado por entityKey (CPF/CNPJ) na tabela expenses.
+  // Custo real de PESSOA = só a categoria "Despesa com Pessoal" (salário). Assim
+  // gastos no cartão da pessoa (escritório/software etc.) NÃO inflam o custo dela
+  // no rateio — esses viram custo da empresa nas outras categorias. (Requer a
+  // OMIE quebrar cada lançamento na categoria certa; senão cai pro manual.)
+  const [pessoalCc] = await db
+    .select({ id: costCenters.id })
+    .from(costCenters)
+    .where(eq(costCenters.slug, "despesa-com-pessoal"))
+    .limit(1);
   const expRows = await db
     .select({ entityKey: expenses.entityKey, value: expenses.value })
     .from(expenses)
-    .where(and(eq(expenses.year, year), eq(expenses.month, month)));
+    .where(
+      and(
+        eq(expenses.year, year),
+        eq(expenses.month, month),
+        pessoalCc ? eq(expenses.costCenterId, pessoalCc.id) : eq(expenses.costCenterId, "__none__")
+      )
+    );
   const realByEntity = new Map<string, number>();
   for (const e of expRows) realByEntity.set(e.entityKey, (realByEntity.get(e.entityKey) ?? 0) + Number(e.value));
 
