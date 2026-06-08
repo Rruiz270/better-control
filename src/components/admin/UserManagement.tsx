@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, Save, KeyRound, Loader2, Check, X } from "lucide-react";
-import { createUser, updateUser, resetUserPassword, setUserAreas, approveUser } from "@/lib/actions/users";
+import { UserPlus, Save, KeyRound, Loader2, Check, X, Trash2, AlertTriangle } from "lucide-react";
+import { createUser, updateUser, resetUserPassword, setUserAreas, approveUser, deleteUser } from "@/lib/actions/users";
 
 type Role = "admin" | "head" | "member";
 type User = {
@@ -26,7 +26,17 @@ function genPassword(): string {
 
 const ROLE_LABEL: Record<Role, string> = { admin: "Admin", head: "Head", member: "Membro" };
 
-function UserRow({ user, areas }: { user: User; areas: Area[] }) {
+function UserRow({
+  user,
+  areas,
+  candidates,
+  isSelf,
+}: {
+  user: User;
+  areas: Area[];
+  candidates: User[];
+  isSelf: boolean;
+}) {
   const router = useRouter();
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -34,6 +44,9 @@ function UserRow({ user, areas }: { user: User; areas: Area[] }) {
   const [areaSel, setAreaSel] = useState<Set<string>>(new Set(user.areaIds));
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [newPw, setNewPw] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [transfer, setTransfer] = useState(true);
+  const [transferTo, setTransferTo] = useState("__placeholder__");
   const [isPending, startTransition] = useTransition();
 
   const areasChanged = JSON.stringify([...areaSel].sort()) !== JSON.stringify([...user.areaIds].sort());
@@ -67,6 +80,18 @@ function UserRow({ user, areas }: { user: User; areas: Area[] }) {
       const r = await approveUser(user.id);
       setMsg({ text: r.emailed ? "Aprovado + email enviado" : "Aprovado (email pendente: setar RESEND_API_KEY)", ok: true });
       router.refresh();
+    });
+  }
+
+  function del() {
+    startTransition(async () => {
+      const r = await deleteUser(user.id, { transferToId: transfer ? transferTo : null });
+      if (r.ok) {
+        setConfirmDel(false);
+        router.refresh();
+      } else {
+        setMsg({ text: r.error ?? "Erro ao excluir", ok: false });
+      }
     });
   }
 
@@ -117,7 +142,74 @@ function UserRow({ user, areas }: { user: User; areas: Area[] }) {
             <Check size={12} /> Aprovar
           </button>
         )}
+        {!isSelf && (
+          <button
+            onClick={() => setConfirmDel((s) => !s)}
+            disabled={isPending}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100"
+            title="Excluir usuário"
+          >
+            <Trash2 size={12} /> Excluir
+          </button>
+        )}
       </div>
+
+      {confirmDel && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-3">
+          <p className="text-xs text-red-700 flex items-start gap-1.5">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>
+              Excluir <b>{user.name}</b> é <b>permanente</b>. Escolha o que fazer com os
+              dados (tarefas, projetos, notas, alocações e horas) dessa pessoa.
+            </span>
+          </p>
+          <label className="flex items-center gap-2 text-xs text-gray-700">
+            <input type="checkbox" checked={transfer} onChange={(e) => setTransfer(e.target.checked)} />
+            Transferir os dados antes de excluir
+          </label>
+          {transfer ? (
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-gray-400 uppercase">Transferir para</span>
+              <select
+                value={transferTo}
+                onChange={(e) => setTransferTo(e.target.value)}
+                className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm bg-white"
+              >
+                <option value="__placeholder__">Não atribuído (decidir depois)</option>
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} — {c.email}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-gray-400">
+                O salário (custo mensal) não é transferido — é apagado junto com o usuário.
+              </p>
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-500">
+              Tarefas e projetos criados por ela passam para <b>você</b>. Notas, alocações,
+              horas e custo são apagados.
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={del}
+              disabled={isPending}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50"
+            >
+              {isPending ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />} Excluir definitivamente
+            </button>
+            <button
+              onClick={() => setConfirmDel(false)}
+              disabled={isPending}
+              className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-500 text-xs"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[10px] font-bold text-gray-400 uppercase">Áreas:</span>
         {areas.map((a) => (
@@ -142,8 +234,19 @@ function UserRow({ user, areas }: { user: User; areas: Area[] }) {
   );
 }
 
-export default function UserManagement({ users, areas }: { users: User[]; areas: Area[] }) {
+export default function UserManagement({
+  users,
+  areas,
+  currentUserId,
+}: {
+  users: User[];
+  areas: Area[];
+  currentUserId: string;
+}) {
   const router = useRouter();
+  // O placeholder "Não atribuído" é um estacionamento de dados, não uma conta
+  // gerenciável: fora da lista editável e da contagem.
+  const visibleUsers = users.filter((u) => u.status !== "placeholder");
   const [showAdd, setShowAdd] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -181,7 +284,7 @@ export default function UserManagement({ users, areas }: { users: User[]; areas:
     <div className="bg-white rounded-xl border border-gray-100 p-5">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-sm font-bold text-navy">Usuários ({users.length})</h3>
+          <h3 className="text-sm font-bold text-navy">Usuários ({visibleUsers.length})</h3>
           <p className="text-xs text-gray-400">Criar/editar acessos e atribuir áreas (admin).</p>
         </div>
         <button onClick={() => setShowAdd((s) => !s)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg gradient-main text-white text-sm font-medium"><UserPlus size={16} /> Novo</button>
@@ -269,8 +372,14 @@ export default function UserManagement({ users, areas }: { users: User[]; areas:
       )}
 
       <div className="-mt-1">
-        {users.map((u) => (
-          <UserRow key={u.id} user={u} areas={areas} />
+        {visibleUsers.map((u) => (
+          <UserRow
+            key={u.id}
+            user={u}
+            areas={areas}
+            candidates={visibleUsers.filter((c) => c.id !== u.id)}
+            isSelf={u.id === currentUserId}
+          />
         ))}
       </div>
     </div>

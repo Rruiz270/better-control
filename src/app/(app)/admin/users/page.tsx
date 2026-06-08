@@ -31,6 +31,7 @@ export default async function AdminUsersPage() {
             status: u.status,
           }))}
           areas={areas.map((a) => ({ id: a.id, name: a.name }))}
+          currentUserId={(session.user as SessionUser).id}
         />
       </div>
     </div>
