@@ -329,6 +329,61 @@ export const financialPlans = pgTable(
   ]
 );
 
+// --- Modelo financeiro NOVO (linhas) — aditivo, não toca financial_plans -------
+// Deptos/projetos com RECEITA: Contratos · Faturamento · Cashflow · Cash Actual
+//   + Despesa Budget · Despesa Actual; Cash Final = Cash Actual − Despesa Actual.
+// Deptos SÓ-DESPESA (ADM, Tech): só Despesa Budget + Despesa Actual.
+export const financialLineEnum = pgEnum("financial_line", [
+  "contratos",
+  "faturamento",
+  "cashflow",
+  "cash_actual",
+  "despesa_budget",
+  "despesa_actual",
+]);
+
+export const financialLines = pgTable(
+  "financial_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    entityType: financialEntityEnum("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    year: integer("year").notNull(),
+    line: financialLineEnum("line").notNull(),
+    m1: numeric("m1", { precision: 14, scale: 2 }).notNull().default("0"),
+    m2: numeric("m2", { precision: 14, scale: 2 }).notNull().default("0"),
+    m3: numeric("m3", { precision: 14, scale: 2 }).notNull().default("0"),
+    m4: numeric("m4", { precision: 14, scale: 2 }).notNull().default("0"),
+    m5: numeric("m5", { precision: 14, scale: 2 }).notNull().default("0"),
+    m6: numeric("m6", { precision: 14, scale: 2 }).notNull().default("0"),
+    m7: numeric("m7", { precision: 14, scale: 2 }).notNull().default("0"),
+    m8: numeric("m8", { precision: 14, scale: 2 }).notNull().default("0"),
+    m9: numeric("m9", { precision: 14, scale: 2 }).notNull().default("0"),
+    m10: numeric("m10", { precision: 14, scale: 2 }).notNull().default("0"),
+    m11: numeric("m11", { precision: 14, scale: 2 }).notNull().default("0"),
+    m12: numeric("m12", { precision: 14, scale: 2 }).notNull().default("0"),
+    updatedBy: uuid("updated_by").references(() => users.id),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("financial_lines_unique_idx").on(t.entityType, t.entityId, t.year, t.line)]
+);
+
+/** Log por CAMPO (mês×linha): todo input/alteração. Serve de auditoria E de base
+ * p/ o "freeze" mês a mês (reconstrói o que estava salvo em cada data). */
+export const financialLineLog = pgTable("financial_line_log", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  entityType: financialEntityEnum("entity_type").notNull(),
+  entityId: uuid("entity_id").notNull(),
+  year: integer("year").notNull(),
+  line: financialLineEnum("line").notNull(),
+  month: integer("month").notNull(),
+  oldValue: numeric("old_value", { precision: 14, scale: 2 }),
+  newValue: numeric("new_value", { precision: 14, scale: 2 }),
+  note: text("note"),
+  changedBy: uuid("changed_by").references(() => users.id),
+  changedAt: timestamp("changed_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // --- Rateio de tempo/custo dos colaboradores ---------------------------------
 // Modelo HÍBRIDO (decisão de produto):
 //  · `allocations`     = % de tempo PLANEJADO por pessoa/projeto/mês (head define).
