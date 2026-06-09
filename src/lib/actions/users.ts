@@ -19,7 +19,7 @@ import {
   timeEntries,
   initiatives,
 } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, ne } from "drizzle-orm";
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import {
@@ -53,6 +53,7 @@ export async function listUsers() {
     })
     .from(users)
     .leftJoin(areas, eq(users.areaId, areas.id))
+    .where(ne(users.status, "placeholder")) // esconde o usuário-fantasma de sistema
     .orderBy(users.name);
   // multi-área: anexa todas as áreas de cada usuário (fallback p/ a primária)
   const ua = await db.select().from(userAreas);
@@ -61,12 +62,29 @@ export async function listUsers() {
   return rows.map((u) => ({ ...u, areaIds: byUser.get(u.id) ?? (u.areaId ? [u.areaId] : []) }));
 }
 
-/** Define as áreas (multi) de um usuário; primária = primeira da lista. */
+/** Define as áreas (multi) de um usuário; primária = primeira da lista.
+ * Se o usuário for HEAD, marca-o como head designado (areas.headId) das suas
+ * áreas — assim o painel deixa de mostrar "Sem head definido". */
 export async function setUserAreas(userId: string, areaIds: string[]): Promise<{ ok: boolean }> {
   await requireAdmin();
   await db.delete(userAreas).where(eq(userAreas.userId, userId));
   if (areaIds.length) await db.insert(userAreas).values(areaIds.map((areaId) => ({ userId, areaId })));
   await db.update(users).set({ areaId: areaIds[0] ?? null, updatedAt: new Date() }).where(eq(users.id, userId));
+
+  const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (u?.role === "head" && areaIds.length) {
+    for (const areaId of areaIds) {
+      await db.update(areas).set({ headId: userId }).where(eq(areas.id, areaId));
+    }
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Define/remove explicitamente o head designado de uma área (areas.headId). */
+export async function setAreaHead(areaId: string, userId: string | null): Promise<{ ok: boolean }> {
+  await requireAdmin();
+  await db.update(areas).set({ headId: userId }).where(eq(areas.id, areaId));
   revalidatePath("/", "layout");
   return { ok: true };
 }

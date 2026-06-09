@@ -62,3 +62,5 @@ scripts/seed-org.ts
 scripts/seed-user-taxid.ts
 _review/
 scripts/cleanup-users.ts
+scripts/seed-org-v2.ts
+scripts/set-passwords.ts
