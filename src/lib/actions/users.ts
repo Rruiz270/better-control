@@ -354,6 +354,16 @@ export async function deleteUser(
   return { ok: true };
 }
 
+/** Usuário troca a própria senha (1º login com senha temporária). */
+export async function changeMyPassword(newPassword: string): Promise<{ ok: boolean; error?: string }> {
+  const session = await requireSession();
+  if (newPassword.length < 6) return { ok: false, error: "Mínimo 6 caracteres." };
+  const passwordHash = await hash(newPassword, 12);
+  await db.update(users).set({ passwordHash, mustChangePassword: false, updatedAt: new Date() }).where(eq(users.id, session.user.id));
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export async function resetUserPassword(
   userId: string,
   password: string

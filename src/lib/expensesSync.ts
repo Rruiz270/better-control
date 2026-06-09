@@ -3,7 +3,7 @@
 // faz upsert em `expenses`. Sem credencial. Usado pela rota de cron e por triggers
 // manuais. Upsert em lote (poucos statements) p/ caber no tempo do serverless.
 import { db } from "@/db";
-import { expenses, supplierCostCenter, entityTax, areas, financialPlans } from "@/db/schema";
+import { expenses, supplierCostCenter, entityTax, areas, financialPlans, financialLines } from "@/db/schema";
 import { sql, and, eq } from "drizzle-orm";
 import { getReceitas } from "@/lib/financeiroData";
 
@@ -114,6 +114,17 @@ async function syncIdiomasActuals(year: number, expValues: { month: number; valu
       .values({ entityType: "area", entityId: idiomas.id, year, stream, metric: "actual", ...f } as typeof financialPlans.$inferInsert)
       .onConflictDoUpdate({
         target: [financialPlans.entityType, financialPlans.entityId, financialPlans.year, financialPlans.stream, financialPlans.metric],
+        set: { ...f, updatedAt: new Date() },
+      });
+  }
+
+  // Modelo NOVO: linhas LIVE (read-only) — receita (Vindi) + despesa (OMIE) por mês.
+  for (const [line, arr] of [["receita_live", receita], ["despesa_live", custo]] as const) {
+    const f = fields(arr);
+    await db.insert(financialLines)
+      .values({ entityType: "area", entityId: idiomas.id, year, line, ...f } as typeof financialLines.$inferInsert)
+      .onConflictDoUpdate({
+        target: [financialLines.entityType, financialLines.entityId, financialLines.year, financialLines.line],
         set: { ...f, updatedAt: new Date() },
       });
   }

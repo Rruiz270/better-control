@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Save, Loader2, Lock } from "lucide-react";
+import { Save, Loader2, Lock, RefreshCw } from "lucide-react";
 import { getFinancialLines, saveFinancialLine } from "@/lib/actions/financialLines";
 import {
   LINE_LABEL,
@@ -21,8 +21,10 @@ const TONE: Record<FinLine, string> = {
   faturamento: "text-blue-600",
   cashflow: "text-indigo-600",
   cash_actual: "text-green-600",
+  receita_live: "text-gray-500",
   despesa_budget: "text-amber-600",
   despesa_actual: "text-red-500",
+  despesa_live: "text-gray-500",
 };
 
 export default function FinancialLinesGrid({
@@ -73,7 +75,9 @@ export default function FinancialLinesGrid({
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4 overflow-x-auto">
       {showRevenue && <Block title="Receita" lines={REVENUE_LINES} data={data} setCell={setCell} canEdit={canEdit} savingLine={savingLine} saveLine={saveLine} />}
+      {showRevenue && <LiveRow line="receita_live" vals={data.receita_live ?? zeros()} />}
       <Block title="Despesa" lines={EXPENSE_LINES} data={data} setCell={setCell} canEdit={canEdit} savingLine={savingLine} saveLine={saveLine} />
+      <LiveRow line="despesa_live" vals={data.despesa_live ?? zeros()} />
 
       {showRevenue && (
         <div className="min-w-[860px] mt-2 pt-2 border-t-2 border-gray-100">
@@ -95,6 +99,19 @@ export default function FinancialLinesGrid({
       )}
       {msg && <p className={`text-xs mt-2 ${msg.includes("Erro") ? "text-red-500" : "text-green-600"}`}>{msg}</p>}
       {!canEdit && <p className="text-[11px] text-gray-400 mt-2">Somente leitura — apenas o head da área (ou admin) edita.</p>}
+    </div>
+  );
+}
+
+/** Linha LIVE (read-only) — preenchida pela API diária (Vindi/OMIE). */
+function LiveRow({ line, vals }: { line: FinLine; vals: number[] }) {
+  return (
+    <div className="min-w-[860px] grid grid-cols-[140px_repeat(12,1fr)_90px] gap-1 items-center mb-3 -mt-2">
+      <span className="text-xs font-bold text-gray-500 flex items-center gap-1" title="Preenchido automaticamente pela API (diário)">
+        <RefreshCw size={11} className="text-cyan" />{LINE_LABEL[line]}
+      </span>
+      {vals.map((v, i) => <span key={i} className="text-[11px] text-center text-gray-500 tabular-nums">{v ? Math.round(v).toLocaleString("pt-BR") : "—"}</span>)}
+      <span className="text-xs text-right font-bold text-gray-500 tabular-nums">{brl(sum(vals))}</span>
     </div>
   );
 }

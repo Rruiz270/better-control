@@ -7,18 +7,24 @@ export type FinLine =
   | "faturamento"
   | "cashflow"
   | "cash_actual"
+  | "receita_live"
   | "despesa_budget"
-  | "despesa_actual";
+  | "despesa_actual"
+  | "despesa_live";
 
 export const REVENUE_LINES: FinLine[] = ["contratos", "faturamento", "cashflow", "cash_actual"];
 export const EXPENSE_LINES: FinLine[] = ["despesa_budget", "despesa_actual"];
-export const ALL_LINES: FinLine[] = [...REVENUE_LINES, ...EXPENSE_LINES];
+// Linhas LIVE = preenchidas pela API (Vindi/OMIE) diariamente. Read-only no grid.
+export const LIVE_LINES: FinLine[] = ["receita_live", "despesa_live"];
+export const ALL_LINES: FinLine[] = [...REVENUE_LINES, "receita_live", ...EXPENSE_LINES, "despesa_live"];
 
 export const LINE_LABEL: Record<FinLine, string> = {
   contratos: "Contratos",
   faturamento: "Faturamento",
   cashflow: "Cashflow",
   cash_actual: "Cash Actual",
+  receita_live: "Live (Vindi)",
   despesa_budget: "Despesa Budget",
   despesa_actual: "Despesa Actual",
+  despesa_live: "Live (OMIE)",
 };

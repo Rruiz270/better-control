@@ -13,7 +13,7 @@ import {
   userAreaIds,
   type SessionUser,
 } from "@/lib/authorization";
-import { ALL_LINES, type FinEntity, type FinLine } from "@/lib/financialLines.constants";
+import { ALL_LINES, LIVE_LINES, type FinEntity, type FinLine } from "@/lib/financialLines.constants";
 
 const MONTH_KEYS = Array.from({ length: 12 }, (_, i) => `m${i + 1}` as const);
 const zeros = () => Array(12).fill(0) as number[];
@@ -69,6 +69,7 @@ export async function saveFinancialLine(input: {
   note?: string;
 }) {
   if (!ALL_LINES.includes(input.line)) throw new AuthorizationError("Linha inválida.");
+  if (LIVE_LINES.includes(input.line)) throw new AuthorizationError("Linha Live é preenchida pela API (somente leitura).");
   const session = await assertCanEdit(input.entityType, input.entityId);
   const userId = session.user.id;
 

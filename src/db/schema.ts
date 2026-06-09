@@ -75,6 +75,8 @@ export const users = pgTable("users", {
   // aprovação) → active (aprovado, pode logar). Existentes = active.
   status: text("status").notNull().default("active"),
   inviteToken: text("invite_token"),
+  // Força troca de senha no 1º login (senha temporária control123).
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -346,8 +348,10 @@ export const financialLineEnum = pgEnum("financial_line", [
   "faturamento",
   "cashflow",
   "cash_actual",
+  "receita_live", // linha LIVE preenchida diariamente pela API Vindi (receita)
   "despesa_budget",
   "despesa_actual",
+  "despesa_live", // linha LIVE preenchida diariamente pela API OMIE (despesa)
 ]);
 
 export const financialLines = pgTable(

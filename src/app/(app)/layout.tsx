@@ -1,5 +1,8 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import Sidebar from "@/components/layout/Sidebar";
 import MobileBottomNav from "@/components/layout/MobileBottomNav";
 import SessionProvider from "@/components/layout/SessionProvider";
@@ -14,6 +17,10 @@ export default async function AppLayout({
   if (!session?.user) redirect("/login");
 
   const user = session.user as { id: string; name: string; role: string };
+  // Força a troca de senha no 1º login (senha temporária). /change-password fica
+  // fora deste layout, então não há loop de redirect.
+  const [u] = await db.select({ mustChange: users.mustChangePassword }).from(users).where(eq(users.id, user.id)).limit(1);
+  if (u?.mustChange) redirect("/change-password");
 
   return (
     <SessionProvider>
