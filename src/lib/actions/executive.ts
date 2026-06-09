@@ -2,10 +2,10 @@
 
 import { db } from "@/db";
 import {
-  areas, financialPlans, tasks, projects, allocations, users,
+  areas, financialLines, tasks, projects, allocations, users,
   areaTargets, appSettings, initiatives,
 } from "@/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession, requireFinanceiroAccess, isAdmin, type SessionUser } from "@/lib/authorization";
 import { getNotas, getVendas, getAlunos, getDespesaMensal, getReceitas } from "@/lib/financeiroData";
@@ -19,17 +19,28 @@ async function assertAdmin() {
   return s;
 }
 
-/** Receita/custo actual por área (financial_plans) — fonte única do P&L de topo. */
+/** Receita/custo actual por área — BOTTOM-UP do modelo de linhas.
+ * Soma as linhas MANUAIS (faturamento=receita, despesa_actual=custo) de cada
+ * PROJETO da área + eventuais linhas no nível da própria área. As linhas LIVE
+ * (Vindi/OMIE) são só referência no grid e NÃO entram no actual de topo. */
 async function areaActuals(year: number) {
-  // Cockpit/DRE leem financial_plans (receita/custo actual do cron) — mantido até
-  // o modelo novo (financial_lines) estar preenchido pelos heads.
-  const fin = await db.select().from(financialPlans).where(and(eq(financialPlans.entityType, "area"), eq(financialPlans.year, year), eq(financialPlans.metric, "actual")));
+  const lines = await db
+    .select()
+    .from(financialLines)
+    .where(and(eq(financialLines.year, year), inArray(financialLines.line, ["faturamento", "despesa_actual"])));
+  // projeto → área (p/ atribuir a linha de projeto à sua vertical)
+  const projs = await db.select({ id: projects.id, areaId: projects.areaId }).from(projects);
+  const projToArea = new Map(projs.map((p) => [p.id, p.areaId]));
+
   const m = new Map<string, { receita: number; custo: number }>();
-  for (const r of fin) {
-    const cur = m.get(r.entityId) ?? { receita: 0, custo: 0 };
-    if (r.stream === "receita") cur.receita += sumRow(r as unknown as Record<string, unknown>);
-    if (r.stream === "custo") cur.custo += sumRow(r as unknown as Record<string, unknown>);
-    m.set(r.entityId, cur);
+  for (const r of lines) {
+    const areaId = r.entityType === "area" ? r.entityId : projToArea.get(r.entityId);
+    if (!areaId) continue;
+    const cur = m.get(areaId) ?? { receita: 0, custo: 0 };
+    const v = sumRow(r as unknown as Record<string, unknown>);
+    if (r.line === "faturamento") cur.receita += v;
+    else if (r.line === "despesa_actual") cur.custo += v;
+    m.set(areaId, cur);
   }
   return m;
 }

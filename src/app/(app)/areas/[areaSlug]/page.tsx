@@ -87,6 +87,7 @@ export default async function AreaDetailPage({
             entityId={area.id}
             canEdit={canEditFinancials}
             showRevenue={area.profile !== "suporte"}
+            rollup={area.profile !== "suporte"}
           />
           <FinancialHistory entityType="area" entityId={area.id} />
         </section>

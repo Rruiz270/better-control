@@ -231,6 +231,18 @@ export const activityLog = pgTable("activity_log", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+/** Log de autenticação: TODA tentativa de login (sucesso ou falha). `userId` é
+ * nulo quando o email não existe. Alimenta o painel de auditoria (admin). */
+export const authLog = pgTable("auth_log", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: text("email").notNull(),
+  userId: uuid("user_id").references(() => users.id),
+  success: boolean("success").notNull(),
+  reason: text("reason"), // "ok" | "credenciais inválidas" | etc.
+  ip: text("ip"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const taskDependencies = pgTable(
   "task_dependencies",
   {

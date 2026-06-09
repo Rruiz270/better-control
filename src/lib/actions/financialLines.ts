@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { financialLines, financialLineLog, projects, users } from "@/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   requireSession,
@@ -51,6 +51,25 @@ export async function getFinancialLines(
   const out = Object.fromEntries(ALL_LINES.map((l) => [l, zeros()])) as Record<FinLine, number[]>;
   for (const r of rows) {
     out[r.line as FinLine] = MONTH_KEYS.map((k) => Number(r[k as keyof typeof r] ?? 0));
+  }
+  return out;
+}
+
+/** Roll-up da VERTICAL: p/ cada linha, soma o nível ÁREA + TODOS os projetos da
+ * área. É o que a página da área mostra (read-only) — o head edita nos PRODUTOS
+ * e a vertical reflete a soma. Linhas Live (Vindi/OMIE) ficam no nível área. */
+export async function getAreaRollupLines(areaId: string, year: number): Promise<Record<FinLine, number[]>> {
+  await assertCanView("area", areaId);
+  const projIds = (await db.select({ id: projects.id }).from(projects).where(eq(projects.areaId, areaId))).map((p) => p.id);
+  const ids = [areaId, ...projIds];
+  const rows = await db
+    .select()
+    .from(financialLines)
+    .where(and(eq(financialLines.year, year), inArray(financialLines.entityId, ids)));
+  const out = Object.fromEntries(ALL_LINES.map((l) => [l, zeros()])) as Record<FinLine, number[]>;
+  for (const r of rows) {
+    const cur = out[r.line as FinLine];
+    MONTH_KEYS.forEach((k, i) => { cur[i] += Number(r[k as keyof typeof r] ?? 0); });
   }
   return out;
 }

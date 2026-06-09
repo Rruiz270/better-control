@@ -1,7 +1,22 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { AuthError } from "next-auth";
+import { eq } from "drizzle-orm";
 import { signIn } from "@/lib/auth";
+import { db } from "@/db";
+import { authLog, users } from "@/db/schema";
+
+/** Registra TODA tentativa de login (sucesso/falha) p/ o painel de auditoria. */
+async function logAuth(email: string, success: boolean, reason: string) {
+  try {
+    const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+    const [u] = email
+      ? await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+      : [];
+    await db.insert(authLog).values({ email, userId: u?.id ?? null, success, reason, ip });
+  } catch { /* nunca quebrar o login por causa do log */ }
+}
 
 // Login via SERVER ACTION (signIn do servidor) — respeita o basePath do Next
 // (/better-control) nativamente e funciona sob o rewrite cross-project do
@@ -21,21 +36,24 @@ export default async function LoginPage({
 
   async function authenticate(formData: FormData) {
     "use server";
+    const email = String(formData.get("email") ?? "");
     try {
       // redirect:false → autentica e seta o cookie sem o redirect interno do
       // NextAuth (que perde o basePath sob o rewrite). Redirecionamos à mão com
       // next/redirect, que respeita o basePath /better-control.
       await signIn("credentials", {
-        email: formData.get("email"),
+        email,
         password: formData.get("password"),
         redirect: false,
       });
     } catch (err) {
       if (err instanceof AuthError) {
+        await logAuth(email, false, "credenciais inválidas");
         redirect(`/login?error=CredentialsSignin`);
       }
       throw err;
     }
+    await logAuth(email, true, "ok");
     redirect(safeNext);
   }
 

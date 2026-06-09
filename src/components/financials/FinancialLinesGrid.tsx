@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Save, Loader2, Lock, RefreshCw } from "lucide-react";
-import { getFinancialLines, saveFinancialLine } from "@/lib/actions/financialLines";
+import { getFinancialLines, getAreaRollupLines, saveFinancialLine } from "@/lib/actions/financialLines";
 import {
   LINE_LABEL,
   REVENUE_LINES,
@@ -32,28 +32,36 @@ export default function FinancialLinesGrid({
   entityId,
   canEdit,
   showRevenue,
+  rollup = false,
   year = new Date().getFullYear(),
 }: {
   entityType: FinEntity;
   entityId: string;
   canEdit: boolean;
   showRevenue: boolean;
+  /** Modo vertical: mostra a SOMA dos projetos da área (read-only). O head edita
+   * nos produtos; a vertical reflete. Só faz sentido com entityType="area". */
+  rollup?: boolean;
   year?: number;
 }) {
+  // No roll-up ninguém edita aqui — a edição vive nos produtos.
+  const editable = canEdit && !rollup;
   const lines = showRevenue ? [...REVENUE_LINES, ...EXPENSE_LINES] : EXPENSE_LINES;
   const [data, setData] = useState<Record<FinLine, number[]>>(() => Object.fromEntries(lines.map((l) => [l, zeros()])) as Record<FinLine, number[]>);
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingLine, setSavingLine] = useState<FinLine | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getFinancialLines(entityType, entityId, year).then((d) => { if (active) { setData(d); setLoading(false); } }).catch(() => setLoading(false));
+    const load = rollup ? getAreaRollupLines(entityId, year) : getFinancialLines(entityType, entityId, year);
+    load.then((d) => { if (active) { setData(d); setLoading(false); } }).catch(() => setLoading(false));
     return () => { active = false; };
-  }, [entityType, entityId, year]);
+  }, [entityType, entityId, year, rollup]);
 
   function setCell(line: FinLine, i: number, v: string) {
     setData((d) => ({ ...d, [line]: d[line].map((x, j) => (j === i ? Number(v) || 0 : x)) }));
@@ -67,6 +75,21 @@ export default function FinancialLinesGrid({
       finally { setSavingLine(null); }
     });
   }
+  function saveAll() {
+    setMsg(null);
+    setSavingAll(true);
+    startTransition(async () => {
+      try {
+        const results = await Promise.all(
+          lines.map((line) => saveFinancialLine({ entityType, entityId, year, line, months: data[line], note: note || undefined }))
+        );
+        const changed = results.reduce((s, r) => s + r.changed, 0);
+        setMsg(`Tudo salvo — ${changed} alteração(ões) em ${lines.length} linhas.`);
+        setNote("");
+      } catch { setMsg("Erro ao salvar tudo (só head/admin editam)."); }
+      finally { setSavingAll(false); }
+    });
+  }
 
   const cashFinal = (data.cash_actual ?? zeros()).map((v, i) => v - (data.despesa_actual?.[i] ?? 0));
 
@@ -74,9 +97,14 @@ export default function FinancialLinesGrid({
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4 overflow-x-auto">
-      {showRevenue && <Block title="Receita" lines={REVENUE_LINES} data={data} setCell={setCell} canEdit={canEdit} savingLine={savingLine} saveLine={saveLine} />}
+      {rollup && (
+        <p className="text-[11px] text-cyan font-semibold mb-3 flex items-center gap-1">
+          <Lock size={11} />Soma dos produtos da vertical — edite os números dentro de cada projeto.
+        </p>
+      )}
+      {showRevenue && <Block title="Receita" lines={REVENUE_LINES} data={data} setCell={setCell} canEdit={editable} savingLine={savingLine} saveLine={saveLine} />}
       {showRevenue && <LiveRow line="receita_live" vals={data.receita_live ?? zeros()} />}
-      <Block title="Despesa" lines={EXPENSE_LINES} data={data} setCell={setCell} canEdit={canEdit} savingLine={savingLine} saveLine={saveLine} />
+      <Block title="Despesa" lines={EXPENSE_LINES} data={data} setCell={setCell} canEdit={editable} savingLine={savingLine} saveLine={saveLine} />
       <LiveRow line="despesa_live" vals={data.despesa_live ?? zeros()} />
 
       {showRevenue && (
@@ -92,13 +120,21 @@ export default function FinancialLinesGrid({
         </div>
       )}
 
-      {canEdit && (
+      {editable && (
         <div className="mt-3 flex items-center gap-2">
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota da alteração (opcional, vai pro log)" className="flex-1 px-3 py-1.5 rounded-lg border border-gray-200 text-xs" />
+          <button
+            onClick={saveAll}
+            disabled={savingAll || savingLine !== null}
+            className="shrink-0 inline-flex items-center gap-2 px-5 py-2 rounded-lg gradient-main text-white font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {savingAll ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            Salvar tudo
+          </button>
         </div>
       )}
       {msg && <p className={`text-xs mt-2 ${msg.includes("Erro") ? "text-red-500" : "text-green-600"}`}>{msg}</p>}
-      {!canEdit && <p className="text-[11px] text-gray-400 mt-2">Somente leitura — apenas o head da área (ou admin) edita.</p>}
+      {!editable && !rollup && <p className="text-[11px] text-gray-400 mt-2">Somente leitura — apenas o head da área (ou admin) edita.</p>}
     </div>
   );
 }
