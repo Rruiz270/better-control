@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { tasks, taskAssignees, users, projects, areas } from "@/db/schema";
 import { eq, and, sql, count, desc } from "drizzle-orm";
+import { requireSession, isAdmin, userAreaIds, type SessionUser } from "@/lib/authorization";
 
 export type PersonStats = {
   userId: string;
@@ -19,6 +20,11 @@ export type PersonStats = {
 };
 
 export async function getAccountabilityStats(): Promise<PersonStats[]> {
+  // Escopo: admin (Raphael/Carlos) vê todos; head/member só as próprias áreas.
+  const session = await requireSession();
+  const su = session.user as SessionUser;
+  const scope = isAdmin(su) ? null : new Set(await userAreaIds(su.id));
+
   const allUsers = await db
     .select({
       id: users.id,
@@ -30,9 +36,10 @@ export async function getAccountabilityStats(): Promise<PersonStats[]> {
     .from(users)
     .leftJoin(areas, eq(users.areaId, areas.id));
 
+  const scopedUsers = scope ? allUsers.filter((u) => u.areaId && scope.has(u.areaId)) : allUsers;
   const stats: PersonStats[] = [];
 
-  for (const user of allUsers) {
+  for (const user of scopedUsers) {
     const assignedTaskIds = await db
       .select({ taskId: taskAssignees.taskId })
       .from(taskAssignees)
@@ -128,7 +135,13 @@ export async function getAccountabilityStats(): Promise<PersonStats[]> {
 }
 
 export async function getProjectRollups() {
-  const allAreas = await db.select().from(areas);
+  // Escopo: admin vê todas as áreas; head/member só as próprias.
+  const session = await requireSession();
+  const su = session.user as SessionUser;
+  const scope = isAdmin(su) ? null : new Set(await userAreaIds(su.id));
+
+  const allAreasRaw = await db.select().from(areas);
+  const allAreas = scope ? allAreasRaw.filter((a) => scope.has(a.id)) : allAreasRaw;
   const rollups = [];
 
   for (const area of allAreas) {
