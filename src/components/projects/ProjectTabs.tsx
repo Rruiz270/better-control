@@ -6,7 +6,8 @@ import TaskPipeline from "@/components/tasks/TaskPipeline";
 import KPIGrid from "@/components/kpis/KPIGrid";
 import NotesList from "@/components/notes/NotesList";
 import BudgetView from "@/components/projects/BudgetView";
-import EntityFinancials from "@/components/financials/EntityFinancials";
+import FinancialLinesGrid from "@/components/financials/FinancialLinesGrid";
+import FinancialHistory from "@/components/financials/FinancialHistory";
 
 type Task = {
   id: string;
@@ -102,14 +103,13 @@ export default function ProjectTabs({
           )}
           {activeTab === "budget" && (
             <div className="space-y-4">
-              <EntityFinancials
+              <FinancialLinesGrid
                 entityType="project"
                 entityId={projectId}
                 canEdit={canEditFinancials}
-                profile={profile}
-                multiplier={multiplier}
-                title="Financeiro do produto"
+                showRevenue={profile !== "suporte"}
               />
+              <FinancialHistory entityType="project" entityId={projectId} />
               <BudgetView
                 budget={budget}
                 forecast={forecast}

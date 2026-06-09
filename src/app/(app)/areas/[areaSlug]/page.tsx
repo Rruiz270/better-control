@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 
-import { getAreaWithStats } from "@/lib/actions/areas";
+import { getAreaWithStats, getAreas } from "@/lib/actions/areas";
 import { auth } from "@/lib/auth";
-import { canManageArea, canViewArea, type SessionUser } from "@/lib/policy";
+import { canManageArea, canViewArea, isAdmin, type SessionUser } from "@/lib/policy";
+import NewProjectForm from "@/components/projects/NewProjectForm";
 import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
@@ -30,9 +31,11 @@ export default async function AreaDetailPage({
   if (session?.user && !canViewArea(session.user as SessionUser, area.id)) {
     notFound();
   }
-  const canEditFinancials = session?.user
-    ? canManageArea(session.user as SessionUser, area.id)
-    : false;
+  const user = session?.user as SessionUser | undefined;
+  const canEditFinancials = user ? canManageArea(user, area.id) : false;
+  // Head (qualquer vertical) ou admin podem propor/criar projeto.
+  const canPropose = !!user && (isAdmin(user) || user.role === "head");
+  const allAreas = canPropose ? await getAreas() : [];
 
   const progress =
     area.totalTasks > 0
@@ -96,7 +99,14 @@ export default async function AreaDetailPage({
         )}
 
         <section>
-          <h3 className="text-lg font-bold text-navy mb-3">Projetos</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold text-navy">Projetos</h3>
+          </div>
+          {canPropose && (
+            <div className="mb-3">
+              <NewProjectForm areas={allAreas.map((a) => ({ id: a.id, name: a.name }))} defaultAreaId={area.id} isAdmin={!!user && isAdmin(user)} />
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {area.projects.map((project) => (
               <Link

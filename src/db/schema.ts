@@ -115,6 +115,14 @@ export const projects = pgTable(
     forecast: numeric("forecast", { precision: 12, scale: 2 }),
     startDate: date("start_date"),
     targetDate: date("target_date"),
+    // Aprovação (🅒): head propõe → pendente → admin aprova/recusa. Existentes = approved.
+    approval: text("approval").notNull().default("approved"), // approved | pending | rejected
+    viabilityReason: text("viability_reason"),
+    expectedRevenue: numeric("expected_revenue", { precision: 14, scale: 2 }),
+    expectedCost: numeric("expected_cost", { precision: 14, scale: 2 }),
+    requestedBy: uuid("requested_by").references(() => users.id),
+    approvedBy: uuid("approved_by").references(() => users.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

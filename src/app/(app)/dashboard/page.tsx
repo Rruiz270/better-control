@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { getDashboardStats } from "@/lib/actions/areas";
 import { getRecentActivity } from "@/lib/actions/activity";
 import { getAllTasks } from "@/lib/actions/tasks";
+import { getPendingProjects } from "@/lib/actions/projects";
+import PendingApprovals from "@/components/projects/PendingApprovals";
 import { AreaRow } from "@/components/dashboard/AreaHighlightCard";
 import Header from "@/components/layout/Header";
 import { formatDistanceToNow } from "date-fns";
@@ -39,6 +41,7 @@ export default async function DashboardPage() {
   const stats = await getDashboardStats();
   const activity = await getRecentActivity(8);
   const allTasks = await getAllTasks();
+  const pendingProjects = await getPendingProjects();
 
   const userName = session?.user?.name?.split(" ")[0] || "Usuário";
   const hour = Number(spTime({ hour: "numeric", hour12: false }));
@@ -87,6 +90,8 @@ export default async function DashboardPage() {
           </h1>
           <div className="mt-5 h-px w-full bg-gradient-to-r from-gray-300/80 via-gray-200/60 to-transparent" />
         </header>
+
+        <PendingApprovals pending={pendingProjects} />
 
         {/* Tira de indicadores */}
         <section

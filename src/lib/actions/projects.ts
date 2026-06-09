@@ -2,9 +2,9 @@
 
 import { db } from "@/db";
 import { projects, tasks, kpis, projectMembers, users, activityLog } from "@/db/schema";
-import { eq, and, count, sql } from "drizzle-orm";
+import { eq, and, count, sql, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireAreaAccess, requireProjectAccess } from "@/lib/authorization";
+import { requireAreaAccess, requireProjectAccess, requireSession, isAdmin, AuthorizationError, type SessionUser } from "@/lib/authorization";
 
 export async function getProjectsByArea(areaId: string) {
   return db.select().from(projects).where(eq(projects.areaId, areaId));
@@ -104,16 +104,59 @@ export async function createProject(data: {
   budget?: string;
   startDate?: string;
   targetDate?: string;
+  viabilityReason?: string;
+  expectedRevenue?: string;
+  expectedCost?: string;
 }) {
-  const session = await requireAreaAccess(data.areaId);
+  // Head pode propor projeto em QUALQUER vertical → fica pendente p/ admin aprovar.
+  // Admin cria já aprovado. Member não cria.
+  const session = await requireSession();
+  const user = session.user as SessionUser;
+  if (!isAdmin(user) && user.role !== "head") {
+    throw new AuthorizationError("Apenas head (propõe) ou admin (cria) podem criar projetos.");
+  }
+  const admin = isAdmin(user);
   const [project] = await db
     .insert(projects)
     .values({
-      ...data,
-      createdBy: session.user.id,
+      areaId: data.areaId, name: data.name, slug: data.slug, description: data.description,
+      budget: data.budget, startDate: data.startDate, targetDate: data.targetDate,
+      viabilityReason: data.viabilityReason, expectedRevenue: data.expectedRevenue, expectedCost: data.expectedCost,
+      createdBy: user.id, requestedBy: user.id,
+      approval: admin ? "approved" : "pending",
+      approvedBy: admin ? user.id : null, approvedAt: admin ? new Date() : null,
     })
     .returning();
 
   revalidatePath("/", "layout");
   return project;
+}
+
+/** Projetos pendentes de aprovação (admin). Alimenta o lembrete no login. */
+export async function getPendingProjects() {
+  const session = await requireSession();
+  if (!isAdmin(session.user as SessionUser)) return [];
+  const { areas } = await import("@/db/schema");
+  return db
+    .select({
+      id: projects.id, name: projects.name, areaId: projects.areaId, areaName: areas.name, areaSlug: areas.slug, slug: projects.slug,
+      reason: projects.viabilityReason, revenue: projects.expectedRevenue, cost: projects.expectedCost,
+      requester: users.name, createdAt: projects.createdAt,
+    })
+    .from(projects)
+    .leftJoin(areas, eq(projects.areaId, areas.id))
+    .leftJoin(users, eq(projects.requestedBy, users.id))
+    .where(eq(projects.approval, "pending"))
+    .orderBy(desc(projects.createdAt));
+}
+
+/** Admin aprova ou recusa um projeto. */
+export async function decideProject(projectId: string, decision: "approved" | "rejected") {
+  const session = await requireSession();
+  const user = session.user as SessionUser;
+  if (!isAdmin(user)) throw new AuthorizationError("Apenas admin aprova projetos.");
+  await db.update(projects).set({ approval: decision, approvedBy: user.id, approvedAt: new Date(), updatedAt: new Date() }).where(eq(projects.id, projectId));
+  await db.insert(activityLog).values({ userId: user.id, entityType: "project", entityId: projectId, action: decision === "approved" ? "project_approved" : "project_rejected", details: {} });
+  revalidatePath("/", "layout");
+  return { ok: true };
 }
