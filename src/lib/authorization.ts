@@ -60,17 +60,18 @@ export async function editablePeopleFor(
     .from(users);
   const set = new Set<string>([user.id]);
 
-  // HEAD → vê/preenche TODOS da(s) sua(s) área(s). Por PERTENCIMENTO de área
-  // (user_areas + área primária), não por areas.headId — assim "Gustavo Head
-  // Idiomas" enxerga todos de Idiomas mesmo sem headId setado. Inclui também
-  // áreas onde ele é o head designado (areas.headId), por compatibilidade.
+  // HEAD DESIGNADO de uma área (areas.headId) → vê/preenche TODOS dessa área.
+  // Sub-head (role=head mas NÃO é o head designado, ex.: Raphael Lima) NÃO recebe
+  // a área inteira — só a própria subárvore (abaixo). Assim "Helen Head Idiomas"
+  // vê todos de Idiomas, mas "Raphael Lima" vê só os professores que reportam a ele.
   if (user.role === "head") {
-    const myAreas = new Set(await userAreaIds(user.id));
     const headed = await db.select({ id: areas.id }).from(areas).where(eq(areas.headId, user.id));
-    for (const a of headed) myAreas.add(a.id);
-    const ua = await db.select().from(userAreas);
-    for (const u of all) if (u.areaId && myAreas.has(u.areaId)) set.add(u.id);
-    for (const r of ua) if (myAreas.has(r.areaId)) set.add(r.userId);
+    const headedSet = new Set(headed.map((a) => a.id));
+    if (headedSet.size) {
+      const ua = await db.select().from(userAreas);
+      for (const u of all) if (u.areaId && headedSet.has(u.areaId)) set.add(u.id);
+      for (const r of ua) if (headedSet.has(r.areaId)) set.add(r.userId);
+    }
   }
 
   // subárvore de reportes (BFS sobre managerId) — vale p/ head e sub-head

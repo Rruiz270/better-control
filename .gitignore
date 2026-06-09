@@ -64,3 +64,5 @@ _review/
 scripts/cleanup-users.ts
 scripts/seed-org-v2.ts
 scripts/set-passwords.ts
+scripts/profs.json
+scripts/seed-professores.ts
