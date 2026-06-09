@@ -2,15 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Save, Loader2, Lock } from "lucide-react";
+import { getFinancialLines, saveFinancialLine } from "@/lib/actions/financialLines";
 import {
-  getFinancialLines,
-  saveFinancialLine,
   LINE_LABEL,
   REVENUE_LINES,
   EXPENSE_LINES,
   type FinLine,
   type FinEntity,
-} from "@/lib/actions/financialLines";
+} from "@/lib/financialLines.constants";
 
 const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 const zeros = () => Array(12).fill(0) as number[];
