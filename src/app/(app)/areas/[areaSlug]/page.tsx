@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
 import Link from "next/link";
 import Badge from "@/components/shared/Badge";
-import EntityFinancials from "@/components/financials/EntityFinancials";
+import FinancialLinesGrid from "@/components/financials/FinancialLinesGrid";
 import DeliveryBoard from "@/components/financials/DeliveryBoard";
 import {
   PROJECT_STATUS_LABELS,
@@ -75,17 +75,14 @@ export default async function AreaDetailPage({
           <h3 className="text-lg font-bold text-navy mb-3">
             Financeiro da Área{" "}
             <span className="text-xs font-medium text-gray-400 ml-1">
-              ({area.profile === "suporte" ? "Custo/Entrega" : "Receita"} · meta{" "}
-              {Number(area.targetMultiplier)}x)
+              ({area.profile === "suporte" ? "Só despesa" : "Receita + Despesa"})
             </span>
           </h3>
-          <EntityFinancials
+          <FinancialLinesGrid
             entityType="area"
             entityId={area.id}
             canEdit={canEditFinancials}
-            profile={area.profile}
-            multiplier={Number(area.targetMultiplier)}
-            title="Financeiro da área"
+            showRevenue={area.profile !== "suporte"}
           />
         </section>
 
