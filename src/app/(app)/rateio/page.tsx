@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Header from "@/components/layout/Header";
 import { getRateioRollup, getRateioContext } from "@/lib/actions/rateio";
 import AllocationEditor from "@/components/rateio/AllocationEditor";
+import RateioMatrix from "@/components/rateio/RateioMatrix";
 import LogTimeWidget from "@/components/rateio/LogTimeWidget";
 import { DollarSign, Clock, TrendingUp, Gauge, Users } from "lucide-react";
 
@@ -105,6 +106,9 @@ export default async function RateioPage() {
           <AllocationEditor ctx={ctx} year={year} month={month} />
           <LogTimeWidget projects={ctx.projects} />
         </div>
+
+        {/* 🅐 Matriz pessoas × projetos (ex.: professores × cursos) */}
+        <RateioMatrix year={year} month={month} />
 
         {/* Tabela de rateio por projeto */}
         <section>

@@ -86,6 +86,24 @@ export async function getRateioContext(): Promise<RateioContext> {
   };
 }
 
+/** Matriz pessoas × projetos (🅐): linhas = pessoas editáveis, colunas = projetos,
+ * células = % de alocação do mês. Usado pelo Raphael Lima p/ alocar professores por curso. */
+export async function getRateioMatrix(year: number, month: number) {
+  const ctx = await getRateioContext();
+  const userIds = ctx.users.map((u) => u.id);
+  const allocs = userIds.length
+    ? await db
+        .select({ userId: allocations.userId, projectId: allocations.projectId, percent: allocations.percent })
+        .from(allocations)
+        .where(and(inArray(allocations.userId, userIds), eq(allocations.year, year), eq(allocations.month, month)))
+    : [];
+  return {
+    users: ctx.users,
+    projects: ctx.projects,
+    allocations: allocs.map((a) => ({ userId: a.userId, projectId: a.projectId, percent: Number(a.percent) })),
+  };
+}
+
 /** Custo mensal de uma pessoa. SENSÍVEL → só admin; demais recebem null. */
 export async function getCollaboratorCost(
   userId: string,
