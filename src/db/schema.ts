@@ -423,6 +423,7 @@ export const collaboratorCost = pgTable(
     month: integer("month").notNull(), // 1..12
     monthlyCost: numeric("monthly_cost", { precision: 14, scale: 2 }).notNull().default("0"),
     capacityMinutes: integer("capacity_minutes").notNull().default(9600), // ~160h/mês
+    note: text("note"), // 🅓 nota explicativa OBRIGATÓRIA quando valor manual
     updatedBy: uuid("updated_by").references(() => users.id),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

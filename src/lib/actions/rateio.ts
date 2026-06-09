@@ -13,7 +13,7 @@ import {
   expenses,
   costCenters,
 } from "@/db/schema";
-import { and, eq, gte, lt, inArray } from "drizzle-orm";
+import { and, eq, gte, lt, inArray, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   requireSession,
@@ -248,8 +248,14 @@ export async function setCollaboratorCost(input: {
   month: number;
   monthlyCost: number;
   capacityMinutes?: number;
+  note?: string;
 }) {
   const session = await assertAdmin();
+  // 🅓 valor manual exige nota explicativa.
+  if (input.monthlyCost > 0 && !(input.note ?? "").trim()) {
+    throw new AuthorizationError("Nota explicativa é obrigatória ao lançar valor manual.");
+  }
+  const note = input.note?.trim() || null;
   await db
     .insert(collaboratorCost)
     .values({
@@ -258,6 +264,7 @@ export async function setCollaboratorCost(input: {
       month: input.month,
       monthlyCost: String(input.monthlyCost),
       capacityMinutes: input.capacityMinutes ?? 9600,
+      note,
       updatedBy: session.user.id,
       updatedAt: new Date(),
     })
@@ -265,6 +272,7 @@ export async function setCollaboratorCost(input: {
       target: [collaboratorCost.userId, collaboratorCost.year, collaboratorCost.month],
       set: {
         monthlyCost: String(input.monthlyCost),
+        note,
         ...(input.capacityMinutes != null ? { capacityMinutes: input.capacityMinutes } : {}),
         updatedBy: session.user.id,
         updatedAt: new Date(),
@@ -272,6 +280,27 @@ export async function setCollaboratorCost(input: {
     });
 
   revalidatePath("/", "layout");
+}
+
+/** Grid de custo manual por colaborador (admin): todos + custo/nota do mês. */
+export async function getCollaboratorCosts(year: number, month: number) {
+  await assertAdmin();
+  const us = await db
+    .select({ id: users.id, name: users.name, role: users.role, status: users.status, areaName: areas.name })
+    .from(users)
+    .leftJoin(areas, eq(users.areaId, areas.id))
+    .where(ne(users.status, "placeholder"))
+    .orderBy(users.name);
+  const costs = await db
+    .select()
+    .from(collaboratorCost)
+    .where(and(eq(collaboratorCost.year, year), eq(collaboratorCost.month, month)));
+  const byUser = new Map(costs.map((c) => [c.userId, c]));
+  return us.map((u) => ({
+    id: u.id, name: u.name, role: u.role, status: u.status, areaName: u.areaName,
+    monthlyCost: Number(byUser.get(u.id)?.monthlyCost ?? 0),
+    note: byUser.get(u.id)?.note ?? "",
+  }));
 }
 
 // --- 4) Rollup de rateio: custo + minutos + contribuição por projeto --------

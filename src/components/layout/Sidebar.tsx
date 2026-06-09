@@ -67,6 +67,7 @@ const FINANCEIRO_NAV = [
   { href: "/financeiro/turnaround", label: "Turnaround", icon: Scissors },
   { href: "/financeiro/unit-economics", label: "Unit Economics", icon: Target },
   { href: "/financeiro/centro-de-custo", label: "Centro de Custo", icon: PieChart },
+  { href: "/financeiro/custos-manuais", label: "Custos Manuais", icon: Calculator },
   { href: "/despesas", label: "Despesas & Pessoas", icon: Receipt },
 ];
 
