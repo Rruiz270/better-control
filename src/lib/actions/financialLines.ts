@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { financialLines, financialLineLog, projects } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { financialLines, financialLineLog, projects, users } from "@/db/schema";
+import { and, eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   requireSession,
@@ -104,6 +104,46 @@ export async function saveFinancialLine(input: {
 
   revalidatePath("/", "layout");
   return { changed: logs.length };
+}
+
+/** Log de alterações por campo (🅖) + base do freeze (🅕): o que mudou, de→para, quem, quando. */
+export async function getFinancialLineLog(entityType: FinEntity, entityId: string, year: number) {
+  await assertCanView(entityType, entityId);
+  return db
+    .select({
+      line: financialLineLog.line, month: financialLineLog.month,
+      oldValue: financialLineLog.oldValue, newValue: financialLineLog.newValue,
+      note: financialLineLog.note, changedAt: financialLineLog.changedAt, by: users.name,
+    })
+    .from(financialLineLog)
+    .leftJoin(users, eq(financialLineLog.changedBy, users.id))
+    .where(and(eq(financialLineLog.entityType, entityType), eq(financialLineLog.entityId, entityId), eq(financialLineLog.year, year)))
+    .orderBy(desc(financialLineLog.changedAt))
+    .limit(300);
+}
+
+/** Freeze mês-a-mês (🅕): p/ cada linha×mês, o 1º valor projetado e o atual + quanto mudou. */
+export async function getFinancialFreeze(entityType: FinEntity, entityId: string, year: number) {
+  await assertCanView(entityType, entityId);
+  const logs = await db
+    .select()
+    .from(financialLineLog)
+    .where(and(eq(financialLineLog.entityType, entityType), eq(financialLineLog.entityId, entityId), eq(financialLineLog.year, year)))
+    .orderBy(financialLineLog.changedAt);
+  // 1º oldValue registrado = a projeção original; current = getFinancialLines
+  const original = new Map<string, number>();
+  for (const l of logs) {
+    const k = `${l.line}:${l.month}`;
+    if (!original.has(k)) original.set(k, Number(l.oldValue ?? 0));
+  }
+  const current = await getFinancialLines(entityType, entityId, year);
+  const out: { line: FinLine; month: number; original: number; current: number; delta: number }[] = [];
+  for (const [k, orig] of original) {
+    const [line, m] = k.split(":");
+    const cur = current[line as FinLine]?.[Number(m) - 1] ?? 0;
+    if (orig !== cur) out.push({ line: line as FinLine, month: Number(m), original: orig, current: cur, delta: cur - orig });
+  }
+  return out;
 }
 
 /** Anos com dados (sempre inclui o ano atual). */

@@ -8,6 +8,7 @@ import Header from "@/components/layout/Header";
 import Link from "next/link";
 import Badge from "@/components/shared/Badge";
 import FinancialLinesGrid from "@/components/financials/FinancialLinesGrid";
+import FinancialHistory from "@/components/financials/FinancialHistory";
 import DeliveryBoard from "@/components/financials/DeliveryBoard";
 import {
   PROJECT_STATUS_LABELS,
@@ -84,6 +85,7 @@ export default async function AreaDetailPage({
             canEdit={canEditFinancials}
             showRevenue={area.profile !== "suporte"}
           />
+          <FinancialHistory entityType="area" entityId={area.id} />
         </section>
 
         {area.profile === "suporte" && (
