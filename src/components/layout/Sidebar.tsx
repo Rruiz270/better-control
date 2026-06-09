@@ -32,7 +32,7 @@ import {
   UserCog,
   ScrollText,
 } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { signOutAction } from "@/lib/actions/auth";
 
 // Modo GESTÃO (operação) e modo FINANCEIRO (financeiro, só quem tem acesso).
 const GESTAO_NAV = [
@@ -172,7 +172,7 @@ export default function Sidebar({
           )}
           {!collapsed && (
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => signOutAction()}
               className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
             >
               <LogOut size={16} />
