@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import {
-  areas, financialPlans, tasks, projects, allocations, users,
+  areas, financialLines, tasks, projects, allocations, users,
   areaTargets, appSettings, initiatives,
 } from "@/db/schema";
 import { and, eq, desc } from "drizzle-orm";
@@ -21,12 +21,15 @@ async function assertAdmin() {
 
 /** Receita/custo actual por área (financial_plans) — fonte única do P&L de topo. */
 async function areaActuals(year: number) {
-  const fin = await db.select().from(financialPlans).where(and(eq(financialPlans.entityType, "area"), eq(financialPlans.year, year), eq(financialPlans.metric, "actual")));
+  // Modelo NOVO: Cockpit/DRE leem FATURAMENTO (receita) + DESPESA ACTUAL (custo)
+  // do financial_lines — números que os heads preenchem. As linhas Live (Vindi/
+  // OMIE) ficam só como referência e NÃO alimentam o cockpit.
+  const rows = await db.select().from(financialLines).where(and(eq(financialLines.entityType, "area"), eq(financialLines.year, year)));
   const m = new Map<string, { receita: number; custo: number }>();
-  for (const r of fin) {
+  for (const r of rows) {
     const cur = m.get(r.entityId) ?? { receita: 0, custo: 0 };
-    if (r.stream === "receita") cur.receita += sumRow(r as unknown as Record<string, unknown>);
-    if (r.stream === "custo") cur.custo += sumRow(r as unknown as Record<string, unknown>);
+    if (r.line === "faturamento") cur.receita += sumRow(r as unknown as Record<string, unknown>);
+    if (r.line === "despesa_actual") cur.custo += sumRow(r as unknown as Record<string, unknown>);
     m.set(r.entityId, cur);
   }
   return m;
