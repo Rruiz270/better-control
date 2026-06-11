@@ -133,7 +133,7 @@ export default function Sidebar({
         </div>
       )}
 
-      <nav className="flex-1 py-4 space-y-1 px-2">
+      <nav className="flex-1 overflow-y-auto py-4 space-y-1 px-2">
         {navItems.filter((item) => !("adminOnly" in item && item.adminOnly) || userRole === "admin").map((item) => {
           const isActive =
             pathname === item.href ||
