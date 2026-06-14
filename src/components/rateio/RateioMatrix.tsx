@@ -4,10 +4,10 @@ import { useEffect, useState, useTransition } from "react";
 import { Loader2, Grid3x3, Save, Check } from "lucide-react";
 import { getRateioMatrix, setAllocation } from "@/lib/actions/rateio";
 
-type U = { id: string; name: string };
-type P = { id: string; name: string };
+type U = { id: string; name: string; areaId: string | null };
+type P = { id: string; name: string; areaId: string };
 
-export default function RateioMatrix({ year = new Date().getFullYear(), month = new Date().getMonth() + 1 }: { year?: number; month?: number }) {
+export default function RateioMatrix({ year = new Date().getFullYear(), month = new Date().getMonth() + 1, areaId = null }: { year?: number; month?: number; areaId?: string | null }) {
   const [open, setOpen] = useState(false);
   const [users, setUsers] = useState<U[]>([]);
   const [projects, setProjects] = useState<P[]>([]);
@@ -20,17 +20,20 @@ export default function RateioMatrix({ year = new Date().getFullYear(), month = 
   const [, start] = useTransition();
 
   useEffect(() => {
-    if (!open || users.length) return;
+    if (!open) return;
     setLoading(true);
+    setUsers([]);
     getRateioMatrix(year, month)
       .then((d) => {
-        setUsers(d.users.map((u) => ({ id: u.id, name: u.name })));
-        setProjects(d.projects.map((p) => ({ id: p.id, name: p.name })));
+        const u = d.users.map((u) => ({ id: u.id, name: u.name, areaId: u.areaId }));
+        const p = d.projects.map((p) => ({ id: p.id, name: p.name, areaId: p.areaId }));
+        setUsers(areaId ? u.filter((x) => x.areaId === areaId) : u);
+        setProjects(areaId ? p.filter((x) => x.areaId === areaId) : p);
         setCells(Object.fromEntries(d.allocations.map((a) => [`${a.userId}:${a.projectId}`, a.percent])));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [open, year, month, users.length]);
+  }, [open, year, month, areaId]);
 
   const colTotal = (uid: string) => projects.reduce((s, p) => s + (cells[`${uid}:${p.id}`] ?? 0), 0);
 

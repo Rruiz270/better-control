@@ -2,9 +2,12 @@ export const dynamic = "force-dynamic";
 
 import Header from "@/components/layout/Header";
 import { getRateioRollup, getRateioContext } from "@/lib/actions/rateio";
+import { getAreas } from "@/lib/actions/areas";
 import AllocationEditor from "@/components/rateio/AllocationEditor";
 import RateioMatrix from "@/components/rateio/RateioMatrix";
 import LogTimeWidget from "@/components/rateio/LogTimeWidget";
+import MonthSelector from "@/components/shared/MonthSelector";
+import AreaSelector from "@/components/shared/AreaSelector";
 import { DollarSign, Clock, TrendingUp, Gauge, Users } from "lucide-react";
 
 const MONTH_NAMES = [
@@ -30,14 +33,24 @@ function RatioBadge({ ratio }: { ratio: number | null }) {
   );
 }
 
-export default async function RateioPage() {
+export default async function RateioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ y?: string; m?: string; area?: string }>;
+}) {
+  const sp = await searchParams;
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const year = sp.y ? Number(sp.y) : now.getFullYear();
+  const month = sp.m ? Number(sp.m) : now.getMonth() + 1;
+  const areaFilter = sp.area ?? "";
 
-  let rows, ctx;
+  let rows, ctx, allAreas;
   try {
-    [rows, ctx] = await Promise.all([getRateioRollup(year, month), getRateioContext()]);
+    [rows, ctx, allAreas] = await Promise.all([
+      getRateioRollup(year, month),
+      getRateioContext(),
+      getAreas(),
+    ]);
   } catch {
     return (
       <div className="min-h-screen">
@@ -49,23 +62,38 @@ export default async function RateioPage() {
     );
   }
 
-  const totalCost = rows.reduce((s, r) => s + r.cost, 0);
-  const totalValue = rows.reduce((s, r) => s + r.valueGenerated, 0);
-  const totalMinutes = rows.reduce((s, r) => s + r.minutes, 0);
+  const areaMap = new Map(allAreas.map((a) => [a.slug, a.id]));
+  const selectedAreaId = areaFilter ? areaMap.get(areaFilter) ?? null : null;
+
+  const filteredRows = selectedAreaId
+    ? rows.filter((r) => r.areaId === selectedAreaId)
+    : rows;
+
+  const totalCost = filteredRows.reduce((s, r) => s + r.cost, 0);
+  const totalValue = filteredRows.reduce((s, r) => s + r.valueGenerated, 0);
+  const totalMinutes = filteredRows.reduce((s, r) => s + r.minutes, 0);
   const overallRatio = totalCost > 0 ? totalValue / totalCost : null;
 
-  // Maior custo primeiro — onde o dinheiro/tempo está indo.
-  const sorted = [...rows].sort((a, b) => b.cost - a.cost);
+  const sorted = [...filteredRows].sort((a, b) => b.cost - a.cost);
 
   return (
     <div className="min-h-screen">
       <Header title="Rateio de Tempo & Custo" />
 
       <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
-        <p className="text-xs text-gray-400 -mt-2">
-          Período: <strong className="text-navy">{MONTH_NAMES[month - 1]} {year}</strong> ·
-          custo rateado pelo tempo real lançado; sem lançamento, cai para a alocação planejada.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 -mt-2">
+          <p className="text-xs text-gray-400">
+            Período: <strong className="text-navy">{MONTH_NAMES[month - 1]} {year}</strong> ·
+            custo rateado pelo tempo real lançado; sem lançamento, cai para a alocação planejada.
+          </p>
+          <div className="flex items-center gap-3">
+            <AreaSelector
+              areas={allAreas.map((a) => ({ slug: a.slug, name: a.name }))}
+              current={areaFilter}
+            />
+            <MonthSelector year={year} month={month} />
+          </div>
+        </div>
 
         {/* KPIs do período */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -107,14 +135,19 @@ export default async function RateioPage() {
           <LogTimeWidget projects={ctx.projects} />
         </div>
 
-        {/* 🅐 Matriz pessoas × projetos (ex.: professores × cursos) */}
-        <RateioMatrix year={year} month={month} />
+        {/* Matriz pessoas × projetos */}
+        <RateioMatrix year={year} month={month} areaId={selectedAreaId} />
 
         {/* Tabela de rateio por projeto */}
         <section>
           <h2 className="text-lg font-bold text-navy mb-3 flex items-center gap-2">
             <Users size={18} />
             Rateio por projeto
+            {areaFilter && (
+              <span className="text-xs font-medium text-cyan ml-1">
+                ({allAreas.find((a) => a.slug === areaFilter)?.name})
+              </span>
+            )}
           </h2>
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <div className="hidden md:grid grid-cols-7 gap-2 px-4 py-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase">
