@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { financialLines, financialLineLog, projects, users } from "@/db/schema";
+import { financialLines, financialLineLog, projects, users, collaboratorCost, allocations } from "@/db/schema";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
@@ -37,6 +37,68 @@ async function assertCanEdit(entityType: FinEntity, entityId: string) {
   return entityType === "area" ? requireAreaAccess(entityId) : requireProjectAccess(entityId);
 }
 
+/** Salários Actual: custo de pessoal rateado por área, computado a partir de
+ * collaborator_cost × allocations. Sem alocações, fallback = área "home" do user. */
+async function computeSalariosActual(areaId: string, year: number): Promise<number[]> {
+  const projRows = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.areaId, areaId));
+  const areaProjectIds = new Set(projRows.map((p) => p.id));
+
+  const costs = await db
+    .select({ userId: collaboratorCost.userId, month: collaboratorCost.month, monthlyCost: collaboratorCost.monthlyCost })
+    .from(collaboratorCost)
+    .where(eq(collaboratorCost.year, year));
+  if (costs.length === 0) return zeros();
+
+  const allocs = await db
+    .select({ userId: allocations.userId, month: allocations.month, projectId: allocations.projectId, percent: allocations.percent })
+    .from(allocations)
+    .where(eq(allocations.year, year));
+
+  const userRows = await db.select({ id: users.id, areaId: users.areaId }).from(users);
+  const userAreaMap = new Map(userRows.map((u) => [u.id, u.areaId]));
+
+  const costMap = new Map<string, number>();
+  for (const c of costs) costMap.set(`${c.userId}:${c.month}`, Number(c.monthlyCost));
+
+  const allocMap = new Map<string, Map<string, number>>();
+  for (const a of allocs) {
+    const key = `${a.userId}:${a.month}`;
+    if (!allocMap.has(key)) allocMap.set(key, new Map());
+    allocMap.get(key)!.set(a.projectId, Number(a.percent));
+  }
+
+  const userIds = new Set(costs.map((c) => c.userId));
+  const result = zeros();
+
+  for (let month = 1; month <= 12; month++) {
+    let total = 0;
+    for (const userId of userIds) {
+      const cost = costMap.get(`${userId}:${month}`);
+      if (!cost || cost <= 0) continue;
+
+      const ua = allocMap.get(`${userId}:${month}`);
+      if (!ua || ua.size === 0) {
+        if (userAreaMap.get(userId) === areaId) total += cost;
+        continue;
+      }
+
+      const totalPct = [...ua.values()].reduce((a, b) => a + b, 0);
+      if (totalPct === 0) continue;
+
+      let areaPct = 0;
+      for (const [projId, pct] of ua) {
+        if (areaProjectIds.has(projId)) areaPct += pct;
+      }
+      if (areaPct > 0) total += cost * (areaPct / totalPct);
+    }
+    result[month - 1] = Math.round(total * 100) / 100;
+  }
+  return result;
+}
+
 /** Todas as linhas de uma entidade+ano → { line: number[12] }. */
 export async function getFinancialLines(
   entityType: FinEntity,
@@ -51,6 +113,9 @@ export async function getFinancialLines(
   const out = Object.fromEntries(ALL_LINES.map((l) => [l, zeros()])) as Record<FinLine, number[]>;
   for (const r of rows) {
     out[r.line as FinLine] = MONTH_KEYS.map((k) => Number(r[k as keyof typeof r] ?? 0));
+  }
+  if (entityType === "area") {
+    out.salarios_actual = await computeSalariosActual(entityId, year);
   }
   return out;
 }
@@ -71,6 +136,7 @@ export async function getAreaRollupLines(areaId: string, year: number): Promise<
     const cur = out[r.line as FinLine];
     MONTH_KEYS.forEach((k, i) => { cur[i] += Number(r[k as keyof typeof r] ?? 0); });
   }
+  out.salarios_actual = await computeSalariosActual(areaId, year);
   return out;
 }
 
@@ -91,30 +157,32 @@ export async function saveFinancialLine(input: {
   if (LIVE_LINES.includes(input.line)) throw new AuthorizationError("Linha Live é preenchida pela API (somente leitura).");
   const session = await assertCanEdit(input.entityType, input.entityId);
   const userId = session.user.id;
+  // After LIVE_LINES guard, the line is guaranteed to be a stored DB enum value.
+  const dbLine = input.line as typeof financialLines.$inferInsert.line;
 
   // valores antigos p/ o diff do log
   const [prev] = await db
     .select()
     .from(financialLines)
-    .where(and(eq(financialLines.entityType, input.entityType), eq(financialLines.entityId, input.entityId), eq(financialLines.year, input.year), eq(financialLines.line, input.line)))
+    .where(and(eq(financialLines.entityType, input.entityType), eq(financialLines.entityId, input.entityId), eq(financialLines.year, input.year), eq(financialLines.line, dbLine)))
     .limit(1);
   const old = prev ? MONTH_KEYS.map((k) => Number(prev[k as keyof typeof prev] ?? 0)) : zeros();
 
   const fields = monthFields(input.months);
   await db
     .insert(financialLines)
-    .values({ entityType: input.entityType, entityId: input.entityId, year: input.year, line: input.line, updatedBy: userId, updatedAt: new Date(), ...fields } as typeof financialLines.$inferInsert)
+    .values({ entityType: input.entityType, entityId: input.entityId, year: input.year, line: dbLine, updatedBy: userId, updatedAt: new Date(), ...fields } as typeof financialLines.$inferInsert)
     .onConflictDoUpdate({
       target: [financialLines.entityType, financialLines.entityId, financialLines.year, financialLines.line],
       set: { ...fields, updatedBy: userId, updatedAt: new Date() },
     });
 
   // log por campo (mês a mês) — base do freeze + auditoria
-  const logs = [];
+  const logs: (typeof financialLineLog.$inferInsert)[] = [];
   for (let i = 0; i < 12; i++) {
     if (Number(old[i]) !== Number(input.months[i] ?? 0)) {
       logs.push({
-        entityType: input.entityType, entityId: input.entityId, year: input.year, line: input.line,
+        entityType: input.entityType, entityId: input.entityId, year: input.year, line: dbLine,
         month: i + 1, oldValue: String(old[i]), newValue: String(input.months[i] ?? 0),
         note: input.note ?? null, changedBy: userId,
       });

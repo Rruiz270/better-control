@@ -25,6 +25,8 @@ const TONE: Record<FinLine, string> = {
   despesa_budget: "text-amber-600",
   despesa_actual: "text-red-500",
   despesa_live: "text-gray-500",
+  salarios_budget: "text-orange-500",
+  salarios_actual: "text-violet-500",
 };
 
 export default function FinancialLinesGrid({
@@ -106,6 +108,7 @@ export default function FinancialLinesGrid({
       {showRevenue && <LiveRow line="receita_live" vals={data.receita_live ?? zeros()} />}
       <Block title="Despesa" lines={EXPENSE_LINES} data={data} setCell={setCell} canEdit={editable} savingLine={savingLine} saveLine={saveLine} />
       <LiveRow line="despesa_live" vals={data.despesa_live ?? zeros()} />
+      {entityType === "area" && <LiveRow line="salarios_actual" vals={data.salarios_actual ?? zeros()} />}
 
       {showRevenue && (
         <div className="min-w-[860px] mt-2 pt-2 border-t-2 border-gray-100">
@@ -139,15 +142,16 @@ export default function FinancialLinesGrid({
   );
 }
 
-/** Linha LIVE (read-only) — preenchida pela API diária (Vindi/OMIE). */
+/** Linha LIVE (read-only) — preenchida pela API diária (Vindi/OMIE) ou computada (rateio). */
 function LiveRow({ line, vals }: { line: FinLine; vals: number[] }) {
+  const tone = TONE[line] ?? "text-gray-500";
   return (
     <div className="min-w-[860px] grid grid-cols-[140px_repeat(12,1fr)_90px] gap-1 items-center mb-3 -mt-2">
-      <span className="text-xs font-bold text-gray-500 flex items-center gap-1" title="Preenchido automaticamente pela API (diário)">
+      <span className={`text-xs font-bold ${tone} flex items-center gap-1`} title="Preenchido automaticamente (somente leitura)">
         <RefreshCw size={11} className="text-cyan" />{LINE_LABEL[line]}
       </span>
-      {vals.map((v, i) => <span key={i} className="text-[11px] text-center text-gray-500 tabular-nums">{v ? Math.round(v).toLocaleString("pt-BR") : "—"}</span>)}
-      <span className="text-xs text-right font-bold text-gray-500 tabular-nums">{brl(sum(vals))}</span>
+      {vals.map((v, i) => <span key={i} className={`text-[11px] text-center ${tone} tabular-nums`}>{v ? Math.round(v).toLocaleString("pt-BR") : "—"}</span>)}
+      <span className={`text-xs text-right font-bold ${tone} tabular-nums`}>{brl(sum(vals))}</span>
     </div>
   );
 }

@@ -360,10 +360,11 @@ export const financialLineEnum = pgEnum("financial_line", [
   "faturamento",
   "cashflow",
   "cash_actual",
-  "receita_live", // linha LIVE preenchida diariamente pela API Vindi (receita)
+  "receita_live",
   "despesa_budget",
   "despesa_actual",
-  "despesa_live", // linha LIVE preenchida diariamente pela API OMIE (despesa)
+  "despesa_live",
+  "salarios_budget",
 ]);
 
 export const financialLines = pgTable(
