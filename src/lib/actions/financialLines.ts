@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { financialLines, financialLineLog, projects, users, collaboratorCost, allocations } from "@/db/schema";
+import { financialLines, financialLineLog, projects, users, collaboratorCost, allocations, expenses, costCenters } from "@/db/schema";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
@@ -37,23 +37,73 @@ async function assertCanEdit(entityType: FinEntity, entityId: string) {
   return entityType === "area" ? requireAreaAccess(entityId) : requireProjectAccess(entityId);
 }
 
-/** Salários Actual: custo de pessoal rateado, computado de collaborator_cost × allocations.
- *  - Área: soma o custo de quem está alocado em projetos da área (fallback = área home).
- *  - Projeto: soma o custo proporcional de quem tem allocation neste projeto. */
+/** Salários Actual: custo de pessoal rateado via allocations.
+ *  Custo efetivo por pessoa×mês = expenses(despesa-com-pessoal via taxId) → collaborator_cost → 0.
+ *  - Projeto: custo proporcional de quem tem allocation neste projeto.
+ *  - Área: soma projetos da área + fallback (área home) para quem não tem allocation. */
 async function computeSalariosActual(entityType: FinEntity, entityId: string, year: number): Promise<number[]> {
-  const costs = await db
+  // 1. Manual costs
+  const manualRows = await db
     .select({ userId: collaboratorCost.userId, month: collaboratorCost.month, monthlyCost: collaboratorCost.monthlyCost })
     .from(collaboratorCost)
     .where(eq(collaboratorCost.year, year));
-  if (costs.length === 0) return zeros();
+  const manualByUserMonth = new Map<string, number>();
+  for (const c of manualRows) manualByUserMonth.set(`${c.userId}:${c.month}`, Number(c.monthlyCost));
 
+  // 2. Real costs from expenses (despesa-com-pessoal category)
+  const [pessoalCc] = await db
+    .select({ id: costCenters.id })
+    .from(costCenters)
+    .where(eq(costCenters.slug, "despesa-com-pessoal"))
+    .limit(1);
+  const expRows = pessoalCc
+    ? await db
+        .select({ entityKey: expenses.entityKey, month: expenses.month, value: expenses.value })
+        .from(expenses)
+        .where(and(eq(expenses.year, year), eq(expenses.costCenterId, pessoalCc.id)))
+    : [];
+  // entityKey = taxId (CPF/CNPJ), group by taxId+month
+  const realByEntityMonth = new Map<string, number>();
+  for (const e of expRows) {
+    const key = `${e.entityKey}:${e.month}`;
+    realByEntityMonth.set(key, (realByEntityMonth.get(key) ?? 0) + Number(e.value));
+  }
+
+  // 3. User taxIds → bridge expenses to users
+  const userTaxRows = await db.select({ id: users.id, taxId: users.taxId }).from(users);
+  const userTaxMap = new Map(userTaxRows.map((u) => [u.id, u.taxId]));
+
+  // 4. Effective cost per user×month: real(taxId) ?? manual ?? 0
+  const costMap = new Map<string, number>();
+  const allUserIds = new Set([
+    ...manualRows.map((c) => c.userId),
+    ...userTaxRows.filter((u) => u.taxId && realByEntityMonth.has(`${u.taxId}:1`)).map((u) => u.id),
+  ]);
+  // Expand: include any user that has a real expense in any month
+  for (const u of userTaxRows) {
+    if (!u.taxId) continue;
+    for (let m = 1; m <= 12; m++) {
+      if (realByEntityMonth.has(`${u.taxId}:${m}`)) { allUserIds.add(u.id); break; }
+    }
+  }
+
+  for (const userId of allUserIds) {
+    const taxId = userTaxMap.get(userId);
+    for (let m = 1; m <= 12; m++) {
+      const real = taxId ? realByEntityMonth.get(`${taxId}:${m}`) : undefined;
+      const manual = manualByUserMonth.get(`${userId}:${m}`);
+      const cost = real ?? manual ?? 0;
+      if (cost > 0) costMap.set(`${userId}:${m}`, cost);
+    }
+  }
+
+  if (costMap.size === 0) return zeros();
+
+  // 5. Allocations
   const allocs = await db
     .select({ userId: allocations.userId, month: allocations.month, projectId: allocations.projectId, percent: allocations.percent })
     .from(allocations)
     .where(eq(allocations.year, year));
-
-  const costMap = new Map<string, number>();
-  for (const c of costs) costMap.set(`${c.userId}:${c.month}`, Number(c.monthlyCost));
 
   const allocMap = new Map<string, Map<string, number>>();
   for (const a of allocs) {
@@ -62,10 +112,8 @@ async function computeSalariosActual(entityType: FinEntity, entityId: string, ye
     allocMap.get(key)!.set(a.projectId, Number(a.percent));
   }
 
-  const userIds = new Set(costs.map((c) => c.userId));
-
   if (entityType === "project") {
-    return computeForProject(entityId, userIds, costMap, allocMap);
+    return computeForProject(entityId, allUserIds, costMap, allocMap);
   }
 
   // Area: need project IDs + user home areas for fallback
@@ -74,7 +122,7 @@ async function computeSalariosActual(entityType: FinEntity, entityId: string, ye
   const userRows = await db.select({ id: users.id, areaId: users.areaId }).from(users);
   const userAreaMap = new Map(userRows.map((u) => [u.id, u.areaId]));
 
-  return computeForArea(entityId, areaProjectIds, userAreaMap, userIds, costMap, allocMap);
+  return computeForArea(entityId, areaProjectIds, userAreaMap, allUserIds, costMap, allocMap);
 }
 
 function computeForProject(
