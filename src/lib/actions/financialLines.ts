@@ -37,15 +37,10 @@ async function assertCanEdit(entityType: FinEntity, entityId: string) {
   return entityType === "area" ? requireAreaAccess(entityId) : requireProjectAccess(entityId);
 }
 
-/** Salários Actual: custo de pessoal rateado por área, computado a partir de
- * collaborator_cost × allocations. Sem alocações, fallback = área "home" do user. */
-async function computeSalariosActual(areaId: string, year: number): Promise<number[]> {
-  const projRows = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.areaId, areaId));
-  const areaProjectIds = new Set(projRows.map((p) => p.id));
-
+/** Salários Actual: custo de pessoal rateado, computado de collaborator_cost × allocations.
+ *  - Área: soma o custo de quem está alocado em projetos da área (fallback = área home).
+ *  - Projeto: soma o custo proporcional de quem tem allocation neste projeto. */
+async function computeSalariosActual(entityType: FinEntity, entityId: string, year: number): Promise<number[]> {
   const costs = await db
     .select({ userId: collaboratorCost.userId, month: collaboratorCost.month, monthlyCost: collaboratorCost.monthlyCost })
     .from(collaboratorCost)
@@ -56,9 +51,6 @@ async function computeSalariosActual(areaId: string, year: number): Promise<numb
     .select({ userId: allocations.userId, month: allocations.month, projectId: allocations.projectId, percent: allocations.percent })
     .from(allocations)
     .where(eq(allocations.year, year));
-
-  const userRows = await db.select({ id: users.id, areaId: users.areaId }).from(users);
-  const userAreaMap = new Map(userRows.map((u) => [u.id, u.areaId]));
 
   const costMap = new Map<string, number>();
   for (const c of costs) costMap.set(`${c.userId}:${c.month}`, Number(c.monthlyCost));
@@ -71,23 +63,59 @@ async function computeSalariosActual(areaId: string, year: number): Promise<numb
   }
 
   const userIds = new Set(costs.map((c) => c.userId));
-  const result = zeros();
 
+  if (entityType === "project") {
+    return computeForProject(entityId, userIds, costMap, allocMap);
+  }
+
+  // Area: need project IDs + user home areas for fallback
+  const projRows = await db.select({ id: projects.id }).from(projects).where(eq(projects.areaId, entityId));
+  const areaProjectIds = new Set(projRows.map((p) => p.id));
+  const userRows = await db.select({ id: users.id, areaId: users.areaId }).from(users);
+  const userAreaMap = new Map(userRows.map((u) => [u.id, u.areaId]));
+
+  return computeForArea(entityId, areaProjectIds, userAreaMap, userIds, costMap, allocMap);
+}
+
+function computeForProject(
+  projectId: string, userIds: Set<string>,
+  costMap: Map<string, number>, allocMap: Map<string, Map<string, number>>,
+): number[] {
+  const result = zeros();
   for (let month = 1; month <= 12; month++) {
     let total = 0;
     for (const userId of userIds) {
       const cost = costMap.get(`${userId}:${month}`);
       if (!cost || cost <= 0) continue;
+      const ua = allocMap.get(`${userId}:${month}`);
+      if (!ua || ua.size === 0) continue;
+      const projPct = ua.get(projectId);
+      if (!projPct || projPct <= 0) continue;
+      const totalPct = [...ua.values()].reduce((a, b) => a + b, 0);
+      if (totalPct > 0) total += cost * (projPct / totalPct);
+    }
+    result[month - 1] = Math.round(total * 100) / 100;
+  }
+  return result;
+}
 
+function computeForArea(
+  areaId: string, areaProjectIds: Set<string>, userAreaMap: Map<string, string | null>,
+  userIds: Set<string>, costMap: Map<string, number>, allocMap: Map<string, Map<string, number>>,
+): number[] {
+  const result = zeros();
+  for (let month = 1; month <= 12; month++) {
+    let total = 0;
+    for (const userId of userIds) {
+      const cost = costMap.get(`${userId}:${month}`);
+      if (!cost || cost <= 0) continue;
       const ua = allocMap.get(`${userId}:${month}`);
       if (!ua || ua.size === 0) {
         if (userAreaMap.get(userId) === areaId) total += cost;
         continue;
       }
-
       const totalPct = [...ua.values()].reduce((a, b) => a + b, 0);
       if (totalPct === 0) continue;
-
       let areaPct = 0;
       for (const [projId, pct] of ua) {
         if (areaProjectIds.has(projId)) areaPct += pct;
@@ -114,9 +142,7 @@ export async function getFinancialLines(
   for (const r of rows) {
     out[r.line as FinLine] = MONTH_KEYS.map((k) => Number(r[k as keyof typeof r] ?? 0));
   }
-  if (entityType === "area") {
-    out.salarios_actual = await computeSalariosActual(entityId, year);
-  }
+  out.salarios_actual = await computeSalariosActual(entityType, entityId, year);
   return out;
 }
 
@@ -136,7 +162,7 @@ export async function getAreaRollupLines(areaId: string, year: number): Promise<
     const cur = out[r.line as FinLine];
     MONTH_KEYS.forEach((k, i) => { cur[i] += Number(r[k as keyof typeof r] ?? 0); });
   }
-  out.salarios_actual = await computeSalariosActual(areaId, year);
+  out.salarios_actual = await computeSalariosActual("area", areaId, year);
   return out;
 }
 

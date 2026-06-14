@@ -108,7 +108,7 @@ export default function FinancialLinesGrid({
       {showRevenue && <LiveRow line="receita_live" vals={data.receita_live ?? zeros()} />}
       <Block title="Despesa" lines={EXPENSE_LINES} data={data} setCell={setCell} canEdit={editable} savingLine={savingLine} saveLine={saveLine} />
       <LiveRow line="despesa_live" vals={data.despesa_live ?? zeros()} />
-      {entityType === "area" && <LiveRow line="salarios_actual" vals={data.salarios_actual ?? zeros()} />}
+      <LiveRow line="salarios_actual" vals={data.salarios_actual ?? zeros()} />
 
       {showRevenue && (
         <div className="min-w-[860px] mt-2 pt-2 border-t-2 border-gray-100">
