@@ -38,7 +38,7 @@ async function assertCanEdit(entityType: FinEntity, entityId: string) {
 }
 
 /** Salários Actual: custo de pessoal rateado via allocations.
- *  Custo efetivo por pessoa×mês = expenses(despesa-com-pessoal via taxId) → collaborator_cost → 0.
+ *  Custo efetivo por pessoa×mês = collaborator_cost (manual) → expenses (despesa-com-pessoal via taxId) → 0.
  *  - Projeto: custo proporcional de quem tem allocation neste projeto.
  *  - Área: soma projetos da área + fallback (área home) para quem não tem allocation. */
 async function computeSalariosActual(entityType: FinEntity, entityId: string, year: number): Promise<number[]> {
@@ -73,7 +73,7 @@ async function computeSalariosActual(entityType: FinEntity, entityId: string, ye
   const userTaxRows = await db.select({ id: users.id, taxId: users.taxId }).from(users);
   const userTaxMap = new Map(userTaxRows.map((u) => [u.id, u.taxId]));
 
-  // 4. Effective cost per user×month: real(taxId) ?? manual ?? 0
+  // 4. Effective cost per user×month: manual ?? real(taxId) ?? 0
   const costMap = new Map<string, number>();
   const allUserIds = new Set([
     ...manualRows.map((c) => c.userId),
@@ -90,9 +90,9 @@ async function computeSalariosActual(entityType: FinEntity, entityId: string, ye
   for (const userId of allUserIds) {
     const taxId = userTaxMap.get(userId);
     for (let m = 1; m <= 12; m++) {
-      const real = taxId ? realByEntityMonth.get(`${taxId}:${m}`) : undefined;
       const manual = manualByUserMonth.get(`${userId}:${m}`);
-      const cost = real ?? manual ?? 0;
+      const real = taxId ? realByEntityMonth.get(`${taxId}:${m}`) : undefined;
+      const cost = manual ?? real ?? 0;
       if (cost > 0) costMap.set(`${userId}:${m}`, cost);
     }
   }
