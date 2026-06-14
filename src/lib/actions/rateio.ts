@@ -368,34 +368,31 @@ export async function getRateioRollup(
     .where(and(eq(collaboratorCost.year, year), eq(collaboratorCost.month, month)));
   const manualByUser = new Map(costs.map((c) => [c.userId, Number(c.monthlyCost)]));
 
-  // Custo real de PESSOA = só a categoria "Despesa com Pessoal" (salário). Assim
-  // gastos no cartão da pessoa (escritório/software etc.) NÃO inflam o custo dela
-  // no rateio — esses viram custo da empresa nas outras categorias. (Requer a
-  // OMIE quebrar cada lançamento na categoria certa; senão cai pro manual.)
-  const [pessoalCc] = await db
+  // Custo real de PESSOA = categorias de pessoal + PJ + prestador. Assim gastos
+  // no cartão da pessoa (escritório/software etc.) NÃO inflam o custo dela no
+  // rateio — esses viram custo da empresa nas outras categorias.
+  const peopleSlugs = ["despesa-com-pessoal", "serv-terceiros-pj", "prestador-de-servico"];
+  const peopleCcs = await db
     .select({ id: costCenters.id })
     .from(costCenters)
-    .where(eq(costCenters.slug, "despesa-com-pessoal"))
-    .limit(1);
-  const expRows = await db
-    .select({ entityKey: expenses.entityKey, value: expenses.value })
-    .from(expenses)
-    .where(
-      and(
-        eq(expenses.year, year),
-        eq(expenses.month, month),
-        pessoalCc ? eq(expenses.costCenterId, pessoalCc.id) : eq(expenses.costCenterId, "__none__")
-      )
-    );
+    .where(inArray(costCenters.slug, peopleSlugs));
+  const ccIds = peopleCcs.map((c) => c.id);
+  const expRows = ccIds.length > 0
+    ? await db
+        .select({ entityKey: expenses.entityKey, value: expenses.value })
+        .from(expenses)
+        .where(and(eq(expenses.year, year), eq(expenses.month, month), inArray(expenses.costCenterId, ccIds)))
+    : [];
   const realByEntity = new Map<string, number>();
   for (const e of expRows) realByEntity.set(e.entityKey, (realByEntity.get(e.entityKey) ?? 0) + Number(e.value));
 
-  // taxId por usuário (ponte). Custo efetivo = real(taxId) ?? manual ?? 0.
+  // taxId por usuário (ponte). Custo efetivo = manual ?? real(taxId) ?? 0.
   const userTax = await db.select({ id: users.id, taxId: users.taxId }).from(users);
   const costByUser = new Map<string, number>();
   for (const u of userTax) {
+    const manual = manualByUser.get(u.id);
     const real = u.taxId ? realByEntity.get(u.taxId) : undefined;
-    const cost = real ?? manualByUser.get(u.id) ?? 0;
+    const cost = manual ?? real ?? 0;
     if (cost > 0) costByUser.set(u.id, cost);
   }
 

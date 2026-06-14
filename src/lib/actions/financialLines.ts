@@ -50,17 +50,18 @@ async function computeSalariosActual(entityType: FinEntity, entityId: string, ye
   const manualByUserMonth = new Map<string, number>();
   for (const c of manualRows) manualByUserMonth.set(`${c.userId}:${c.month}`, Number(c.monthlyCost));
 
-  // 2. Real costs from expenses (despesa-com-pessoal category)
-  const [pessoalCc] = await db
+  // 2. Real costs from expenses (people-cost categories: pessoal, PJ, prestador)
+  const peopleSlugs = ["despesa-com-pessoal", "serv-terceiros-pj", "prestador-de-servico"];
+  const peopleCcs = await db
     .select({ id: costCenters.id })
     .from(costCenters)
-    .where(eq(costCenters.slug, "despesa-com-pessoal"))
-    .limit(1);
-  const expRows = pessoalCc
+    .where(inArray(costCenters.slug, peopleSlugs));
+  const ccIds = peopleCcs.map((c) => c.id);
+  const expRows = ccIds.length > 0
     ? await db
         .select({ entityKey: expenses.entityKey, month: expenses.month, value: expenses.value })
         .from(expenses)
-        .where(and(eq(expenses.year, year), eq(expenses.costCenterId, pessoalCc.id)))
+        .where(and(eq(expenses.year, year), inArray(expenses.costCenterId, ccIds)))
     : [];
   // entityKey = taxId (CPF/CNPJ), group by taxId+month
   const realByEntityMonth = new Map<string, number>();
