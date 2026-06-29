@@ -20,6 +20,7 @@ import {
   requireProjectAccess,
   isAdmin,
   editablePeopleFor,
+  userAreaIds,
   AuthorizationError,
   type SessionUser,
 } from "@/lib/authorization";
@@ -350,12 +351,13 @@ export async function getRateioRollup(
 
   const { from, to } = monthRange(year, month);
 
-  // Projetos no escopo (admin: todos; head: da sua área).
+  // Projetos no escopo (admin: todos; head: das suas áreas, multi-área).
+  const scopeAreaIds = user.role === "admin" ? null : await userAreaIds(user.id);
   const projectRows = await db
     .select({ id: projects.id, name: projects.name, areaId: projects.areaId, areaProfile: areas.profile })
     .from(projects)
     .innerJoin(areas, eq(projects.areaId, areas.id))
-    .where(user.role === "admin" ? undefined : eq(projects.areaId, user.areaId ?? "__none__"));
+    .where(scopeAreaIds ? inArray(projects.areaId, scopeAreaIds.length ? scopeAreaIds : ["__none__"]) : undefined);
 
   if (projectRows.length === 0) return [];
   const scopeIds = new Set(projectRows.map((p) => p.id));

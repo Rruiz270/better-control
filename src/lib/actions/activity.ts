@@ -3,7 +3,8 @@
 import { db } from "@/db";
 import { activityLog, authLog, financialLineLog, projects, areas, users } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
-import { requireSession, isAdmin, AuthorizationError, type SessionUser } from "@/lib/authorization";
+import { requireSession, isAdmin, userAreaIds, AuthorizationError, type SessionUser } from "@/lib/authorization";
+import { inArray } from "drizzle-orm";
 import { PROJECT_STATUS_LABELS, TASK_STATUS_LABELS } from "@/lib/constants";
 import { LINE_LABEL, type FinLine } from "@/lib/financialLines.constants";
 
@@ -21,14 +22,15 @@ const SELECT = {
 export async function getRecentActivity(limit = 20) {
   const session = await requireSession();
   const user = session.user as SessionUser;
-  // Escopo: head/member veem só atividade de quem é da própria área; admin vê tudo.
-  // Membro sem área não vê nada (evita where com areaId null).
-  const where =
-    user.role === "admin"
-      ? undefined
-      : user.areaId
-        ? eq(users.areaId, user.areaId)
-        : sql`false`;
+  // Escopo: head/member veem atividade de quem é das suas áreas (multi-área); admin vê tudo.
+  // Sem área nenhuma → não vê nada (evita where com areaId null).
+  let where;
+  if (user.role === "admin") {
+    where = undefined;
+  } else {
+    const areaIds = await userAreaIds(user.id);
+    where = areaIds.length ? inArray(users.areaId, areaIds) : sql`false`;
+  }
 
   return db
     .select(SELECT)

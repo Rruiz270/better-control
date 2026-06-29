@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { areas, projects, users, tasks, kpis } from "@/db/schema";
 import { eq, count, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { requireSession, isAdmin, AuthorizationError, type SessionUser } from "@/lib/authorization";
+import { requireSession, isAdmin, userAreaIds, AuthorizationError, type SessionUser } from "@/lib/authorization";
 
 export async function getAreas() {
   const result = await db
@@ -108,9 +108,13 @@ export async function getDashboardStats() {
   const session = await requireSession();
   const user = session.user as SessionUser;
   const allAreas = await getAreas();
-  // Escopo: head/member veem só a própria área; admin vê todas.
-  const visibleAreas =
-    user.role === "admin" ? allAreas : allAreas.filter((a) => a.id === user.areaId);
+  // Escopo: head/member veem TODAS as suas áreas (multi-área); admin vê todas.
+  const visibleAreas = user.role === "admin"
+    ? allAreas
+    : await (async () => {
+        const ids = new Set(await userAreaIds(user.id));
+        return allAreas.filter((a) => ids.has(a.id));
+      })();
 
   // Duas queries agregadas (GROUP BY) em vez de N+1 por projeto.
   const projAgg = await db
